@@ -30,6 +30,7 @@ aiosmtplib = "^4.0.0"
 asyncpg = "^0.30.0"
 aiosqlite = "^0.21.0"
 aioboto3 = "^13.4.0"
+sqlalchemy-stubs = "^0.4"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^7.0.0"
