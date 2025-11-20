@@ -12,13 +12,13 @@ settings = get_settings()
 
 SQLITE_DATABASE_URL = f"sqlite+aiosqlite:///{settings.PATH_TO_DB}"
 
-engine = create_async_engine(SQLITE_DATABASE_URL, echo=True)
+engine = create_async_engine(SQLITE_DATABASE_URL, echo=False)
 
-AsyncSQLiteSessionLocal = sessionmaker(
+AsyncSQLiteSessionLocal = sessionmaker(  # type: ignore
     bind=engine,
     class_=AsyncSession,
     expire_on_commit=False
-)  # type: ignore
+)
 
 
 async def init_db() -> None:
