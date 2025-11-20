@@ -10,7 +10,6 @@ python = "^3.12.3"
 fastapi = {extras = ["all"], version = "^0.121.1"}
 sqlalchemy = "^2.0.36"
 pydantic-settings = "^2.7.0"
-pandas = "^2.2.3"
 tqdm = "^4.67.1"
 uvicorn = {extras = ["standard"], version = "^0.38.0"}
 flake8 = "^7.1.1"
