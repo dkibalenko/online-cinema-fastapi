@@ -10,7 +10,9 @@ from sqlalchemy import (
     Text,
     Numeric,
     ForeignKey,
-    UniqueConstraint
+    UniqueConstraint,
+    Table,
+    Column
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.sql import func
@@ -20,6 +22,40 @@ class Base(DeclarativeBase):
     @classmethod
     def default_order_by(cls):
         return None
+
+
+MoviesGenresModel = Table(
+    "movie_genres",
+    Base.metadata,
+    Column(
+        "movie_id",
+        ForeignKey("movies.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False
+    ),
+    Column(
+        "genre_id",
+        ForeignKey("genres.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False
+    ),
+)
+
+
+class Genre(Base):
+    __tablename__ = "genres"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+
+    movies: Mapped[list["Movie"]] = relationship(
+        "Movie",
+        secondary=MoviesGenresModel,
+        back_populates="genres"
+    )
+
+    def __repr__(self):
+        return f"<Genre(name='{self.name}')>"
 
 
 class Movie(Base):
@@ -53,9 +89,14 @@ class Movie(Base):
         Numeric(10, 2), default=Decimal("0.00")
     )
     certification_id: Mapped[int] = mapped_column(
-        ForeignKey("certifications.id", ondelete="RESTRICT")
+        ForeignKey("certifications.id", ondelete="RESTRICT", nullable=False)
     )
     certification: Mapped["Certification"] = relationship(
+        back_populates="movies"
+    )
+    genres: Mapped[list["Genre"]] = relationship(
+        "GenreModel",
+        secondary=MoviesGenresModel,
         back_populates="movies"
     )
 
@@ -73,7 +114,7 @@ class Certification(Base):
     __tablename__ = "certifications"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     movies: Mapped[List["Movie"]] = relationship(
         back_populates="certification"
     )
