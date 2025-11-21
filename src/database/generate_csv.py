@@ -4,11 +4,8 @@ import random
 import uuid
 from decimal import Decimal
 
-from logger_config import get_logger, setup_logging
+from main import log
 
-
-setup_logging()
-log = get_logger()
 
 NUM_MOVIES = 100
 CERTIFICATIONS_LIST = ["G", "PG", "PG-13", "R", "NC-17", "Unrated"]

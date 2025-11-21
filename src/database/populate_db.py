@@ -5,13 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from tqdm.asyncio import tqdm
 
+from main import log
 from config import get_settings
 from database import (
     Movie,
     Certification,
     get_db_contextmanager,
     init_db,
-    log,
     ensure_csv_files_exist
 )
 

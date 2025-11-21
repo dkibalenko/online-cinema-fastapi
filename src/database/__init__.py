@@ -1,7 +1,6 @@
 from database.models import Base, Movie, Certification
 from database.generate_csv import (
-    ensure_csv_files_exist,
-    log
+    ensure_csv_files_exist
 )
 
 from database.session_sqlite import (
