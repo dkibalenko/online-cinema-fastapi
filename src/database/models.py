@@ -41,6 +41,23 @@ MoviesGenresModel = Table(
     ),
 )
 
+MoviesStarsModel = Table(
+    "movie_stars",
+    Base.metadata,
+    Column(
+        "movie_id",
+        ForeignKey("movies.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False
+    ),
+    Column(
+        "star_id",
+        ForeignKey("stars.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False
+    ),
+)
+
 
 class Genre(Base):
     __tablename__ = "genres"
@@ -56,6 +73,22 @@ class Genre(Base):
 
     def __repr__(self):
         return f"<Genre(name='{self.name}')>"
+
+
+class Star(Base):
+    __tablename__ = "stars"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+
+    movies: Mapped[list["Movie"]] = relationship(
+        "Movie",
+        secondary=MoviesStarsModel,
+        back_populates="stars"
+    )
+
+    def __repr__(self):
+        return f"<Star(name='{self.name}')>"
 
 
 class Movie(Base):
@@ -95,8 +128,13 @@ class Movie(Base):
         back_populates="movies"
     )
     genres: Mapped[list["Genre"]] = relationship(
-        "GenreModel",
+        "Genre",
         secondary=MoviesGenresModel,
+        back_populates="movies"
+    )
+    stars: Mapped[list["Star"]] = relationship(
+        "Star",
+        secondary=MoviesStarsModel,
         back_populates="movies"
     )
 
