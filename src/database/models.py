@@ -58,6 +58,23 @@ MoviesStarsModel = Table(
     ),
 )
 
+MoviesDirectorsModel = Table(
+    "movie_directors",
+    Base.metadata,
+    Column(
+        "movie_id",
+        ForeignKey("movies.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False
+    ),
+    Column(
+        "director_id",
+        ForeignKey("directors.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False
+    ),
+)
+
 
 class Genre(Base):
     __tablename__ = "genres"
@@ -89,6 +106,22 @@ class Star(Base):
 
     def __repr__(self):
         return f"<Star(name='{self.name}')>"
+
+
+class Director(Base):
+    __tablename__ = "directors"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+
+    movies: Mapped[list["Movie"]] = relationship(
+        "Movie",
+        secondary=MoviesDirectorsModel,
+        back_populates="directors"
+    )
+
+    def __repr__(self):
+        return f"<Director(name='{self.name}')>"
 
 
 class Movie(Base):
@@ -137,12 +170,21 @@ class Movie(Base):
         secondary=MoviesStarsModel,
         back_populates="movies"
     )
+    directors: Mapped[list["Director"]] = relationship(
+        "Director",
+        secondary=MoviesStarsModel,
+        back_populates="movies"
+    )
 
     __table_args__ = (
         UniqueConstraint(
             "name", "year", "time", name="unique_movie_constraint"
         ),
     )
+
+    @classmethod
+    def default_order_by(cls):
+        return [cls.id.desc()]
 
     def __repr__(self):
         return f"Movie(name={self.name}, year={self.year}, imdb={self.imdb})"
