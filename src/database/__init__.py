@@ -10,3 +10,8 @@ from database.session_sqlite import (
     get_db_contextmanager,
     reset_sqlite_database
 )
+
+from database.session_postgres import (
+    get_postgresql_db as get_db,
+    get_postgresql_db_contexmanager as get_db_contextmanager
+)
