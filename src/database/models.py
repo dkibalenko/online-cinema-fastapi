@@ -128,21 +128,21 @@ class Movie(Base):
     __tablename__ = "movies"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    uu_id: Mapped[str] = mapped_column(
-        String(36),
-        default=lambda: str(uuid.uuid4()),
-        nullable=False,
-        unique=True,
-        index=True
-    )
-    # Postgres-optimized
-    # uu_id: Mapped[uuid.UUID] = mapped_column(
-    #     PG_UUID(as_uuid=True),
-    #     server_default=func.gen_random_uuid(), # Postgres generate the UUID
+    # uu_id: Mapped[str] = mapped_column(
+    #     String(36),
+    #     default=lambda: str(uuid.uuid4()),
+    #     nullable=False,
     #     unique=True,
-    #     index=True,
-    #     nullable=False
+    #     index=True
     # )
+    # Postgres-optimized
+    uu_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        server_default=func.gen_random_uuid(), # Postgres generate the UUID
+        unique=True,
+        index=True,
+        nullable=False
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     time: Mapped[int] = mapped_column(Integer, nullable=False)
