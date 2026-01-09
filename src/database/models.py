@@ -155,7 +155,8 @@ class Movie(Base):
         Numeric(10, 2), default=Decimal("0.00")
     )
     certification_id: Mapped[int] = mapped_column(
-        ForeignKey("certifications.id", ondelete="RESTRICT", nullable=False)
+        ForeignKey("certifications.id", ondelete="RESTRICT"),
+        nullable=False
     )
     certification: Mapped["Certification"] = relationship(
         back_populates="movies"
@@ -172,7 +173,7 @@ class Movie(Base):
     )
     directors: Mapped[list["Director"]] = relationship(
         "Director",
-        secondary=MoviesStarsModel,
+        secondary=MoviesDirectorsModel,
         back_populates="movies"
     )
 
