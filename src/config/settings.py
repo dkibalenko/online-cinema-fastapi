@@ -8,11 +8,20 @@ class BaseAppSettings(BaseSettings):
     PATH_TO_DB: str = str(
         BASE_DIR / "database" / "source" / "online_cinema.db"
     )
-    CERT_CSV_PATH: str = str(
-        BASE_DIR / "database" / "seed_data" / "certifications.csv"
+    CERT_JSON_PATH: str = str(
+        BASE_DIR / "database" / "seed_data" / "certifications.json"
     )
-    MOVIE_CSV_PATH: str = str(
-        BASE_DIR / "database" / "seed_data" / "movies.csv"
+    MOVIE_JSON_PATH: str = str(
+        BASE_DIR / "database" / "seed_data" / "movies.json"
+    )
+    GENRE_JSON_PATH: str = str(
+        BASE_DIR / "database" / "seed_data" / "genres.json"
+    )
+    STARS_JSON_PATH: str = str(
+        BASE_DIR / "database" / "seed_data" / "stars.json"
+    )
+    DIRECTORS_JSON_PATH: str = str(
+        BASE_DIR / "database" / "seed_data" / "directors.json"
     )
 
 
