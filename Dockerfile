@@ -4,9 +4,14 @@ FROM python:3.12.3
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PIP_NO_CACHE_DIR=off
+ENV ALEMBIC_CONFIG=/usr/src/alembic/alembic.ini
 
 # Installing dependencies
 RUN apt update && apt install -y \
+    gcc \
+    libpq-dev \
+    netcat-openbsd \
+    postgresql-client \
     dos2unix \
     && apt clean
 
@@ -17,6 +22,7 @@ RUN python -m pip install --upgrade pip && \
 # Copy dependency files
 COPY ./poetry.lock /usr/src/poetry/poetry.lock
 COPY ./pyproject.toml /usr/src/poetry/pyproject.toml
+COPY ./alembic.ini /usr/src/alembic/alembic.ini
 
 # Configure Poetry to avoid creating a virtual environment
 RUN poetry config virtualenvs.create false
