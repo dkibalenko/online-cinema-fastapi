@@ -2,7 +2,7 @@ import uuid
 from typing import Optional, List
 from decimal import Decimal
 
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import (
     String,
     Integer,
@@ -17,11 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.sql import func
 
-
-class Base(DeclarativeBase):
-    @classmethod
-    def default_order_by(cls):
-        return None
+from database.models.base import Base
 
 
 MoviesGenresModel = Table(
