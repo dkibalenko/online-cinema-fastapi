@@ -5,8 +5,8 @@ from sqlalchemy import pool
 
 from alembic import context
 
-from database import models  # noqa: F401
-from database.models import Base
+from database.models import movies  # noqa: F401
+from database.models.base import Base
 from database.session_postgres import sync_postgresql_engine
 
 # this is the Alembic Config object, which provides
