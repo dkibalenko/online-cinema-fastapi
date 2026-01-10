@@ -2,7 +2,7 @@ import uuid
 from typing import Optional, List
 from decimal import Decimal
 
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import (
     String,
     Integer,
@@ -17,11 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.sql import func
 
-
-class Base(DeclarativeBase):
-    @classmethod
-    def default_order_by(cls):
-        return None
+from database.models.base import Base
 
 
 MoviesGenresModel = Table(
@@ -128,21 +124,21 @@ class Movie(Base):
     __tablename__ = "movies"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    uu_id: Mapped[str] = mapped_column(
-        String(36),
-        default=lambda: str(uuid.uuid4()),
-        nullable=False,
-        unique=True,
-        index=True
-    )
-    # Postgres-optimized
-    # uu_id: Mapped[uuid.UUID] = mapped_column(
-    #     PG_UUID(as_uuid=True),
-    #     server_default=func.gen_random_uuid(), # Postgres generate the UUID
+    # uu_id: Mapped[str] = mapped_column(
+    #     String(36),
+    #     default=lambda: str(uuid.uuid4()),
+    #     nullable=False,
     #     unique=True,
-    #     index=True,
-    #     nullable=False
+    #     index=True
     # )
+    # Postgres-optimized
+    uu_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        server_default=func.gen_random_uuid(), # Postgres generate the UUID
+        unique=True,
+        index=True,
+        nullable=False
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     time: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -155,7 +151,8 @@ class Movie(Base):
         Numeric(10, 2), default=Decimal("0.00")
     )
     certification_id: Mapped[int] = mapped_column(
-        ForeignKey("certifications.id", ondelete="RESTRICT", nullable=False)
+        ForeignKey("certifications.id", ondelete="RESTRICT"),
+        nullable=False
     )
     certification: Mapped["Certification"] = relationship(
         back_populates="movies"
@@ -172,7 +169,7 @@ class Movie(Base):
     )
     directors: Mapped[list["Director"]] = relationship(
         "Director",
-        secondary=MoviesStarsModel,
+        secondary=MoviesDirectorsModel,
         back_populates="movies"
     )
 
