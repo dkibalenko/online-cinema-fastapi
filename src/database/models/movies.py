@@ -131,6 +131,7 @@ class Movie(Base):
     #     unique=True,
     #     index=True
     # )
+
     # Postgres-optimized
     uu_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
