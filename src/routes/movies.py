@@ -4,9 +4,12 @@ from fastapi_pagination.ext.sqlalchemy import paginate
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.exc import IntegrityError
 
-from schemas.movies import MovieListItemSchema, MovieDetailSchema
+from schemas.movies import MovieCreateSchema, MovieListItemSchema, MovieDetailSchema
 from database import get_db, Movie
+from database.models.movies import Certification, Genre, Star, Director
+from routes.utils import get_or_create_related
 
 
 router = APIRouter()
@@ -14,7 +17,8 @@ router = APIRouter()
 
 @router.get(
     "/movies/",
-    response_model=Page[MovieListItemSchema]
+    response_model=Page[MovieListItemSchema],
+    status_code=status.HTTP_200_OK
 )
 async def get_movie_list(
     db: AsyncSession = Depends(get_db)
@@ -30,7 +34,8 @@ async def get_movie_list(
 
 @router.get(
     "/movies/{movie_id}/", 
-    response_model=MovieDetailSchema
+    response_model=MovieDetailSchema,
+    status_code=status.HTTP_200_OK
 )
 async def get_movie_detail(
     movie_id: int,
@@ -63,3 +68,79 @@ async def get_movie_detail(
     # FastAPI handles model_validate automatically because 
     # response_model is set and from_attributes=True is set in the config
     return movie
+
+
+@router.post(
+    "/movies/",
+    response_model=MovieDetailSchema,
+    status_code=status.HTTP_201_CREATED
+)
+async def create_movie(
+    movie_data: MovieCreateSchema,
+    db: AsyncSession = Depends(get_db)
+) -> MovieDetailSchema:
+    """
+    Creates a new movie.
+    Checks for existing movie with the same name and year.
+    Handles many-to-many collections efficiently using get_or_create_related.
+    Raises HTTPException with 409_CONFLICT if the movie already exists.
+    Raises HTTPException with 400_BAD_REQUEST if there is an integrity error.
+    """
+    
+    existing_stmt = select(Movie).where(
+        (Movie.name == movie_data.name),
+        (Movie.year == movie_data.year)
+    )
+    # 1. Check for existing movie
+    existing_result = await db.execute(existing_stmt)
+    existing_movie = existing_result.scalar_one_or_none()
+
+    if existing_movie:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Movie with the name '{movie_data.name}' and year "
+            f"'{movie_data.year}' already exists."
+        )
+
+    try:
+        # 2. Handle Certification (Get or Create)
+        certs = await get_or_create_related(
+            Certification, [movie_data.certification], db
+        )
+        certification = certs[0]
+
+        # 3. Resolve Many-to-Many Collections efficiently
+        genres = await get_or_create_related(Genre, movie_data.genres, db)
+        stars = await get_or_create_related(Star, movie_data.stars, db)
+        directors = await get_or_create_related(
+            Director, movie_data.directors, db
+        )
+
+        # 4. Create Movie
+        # exclude the relation fields from the dict and pass resolved objects
+        movie_dict = movie_data.model_dump(  # gives a dict of validated data
+            exclude={"genres", "stars", "directors", "certification"}
+        )
+        new_movie = Movie(
+            **movie_dict,
+            certification=certification,
+            genres=genres,
+            stars=stars,
+            directors=directors
+        )
+        db.add(new_movie)
+        await db.commit()
+
+        # Refresh with joined/selectin data for the response
+        await db.refresh(
+            new_movie,
+            ["certification","genres", "stars", "directors"]
+        )
+
+        return new_movie
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Integrity error. Ensure all related data is valid."
+        )
