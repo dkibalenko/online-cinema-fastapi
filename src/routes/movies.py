@@ -199,3 +199,28 @@ async def update_movie(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Integrity error. Ensure values are unique/valid."
         )
+
+
+@router.delete(
+    "/movies/{movie_id}/",
+    status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_movie(
+    movie_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Deletes a movie by ID.
+
+    Raises HTTPException with 404_NOT_FOUND if the movie doesn't exist.
+    """
+    movie = await db.get(Movie, movie_id)
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Movie with ID {movie_id} not found."
+        )
+
+    await db.delete(movie)
+    await db.commit()
