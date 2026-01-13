@@ -84,3 +84,17 @@ class MovieCreateSchema(MovieBaseSchema):
         return [
             value.strip().title() for value in values if isinstance(value, str)
         ]
+
+
+class MovieUpdateSchema(BaseModel):
+    name: Optional[str] = Field(None, max_length=255)
+    year: Optional[int] = Field(None, ge=1900, le=2026)
+    time: Optional[int] = Field(None, description="Duration in minutes")
+    imdb: Optional[float] = Field(None, ge=0, le=10)
+    votes: Optional[int] = Field(None, ge=0)
+    description: Optional[str] = None
+    meta_score: Optional[float] = Field(None, ge=0, le=100)
+    gross: Optional[Decimal] = Field(None, decimal_places=2)
+    price: Optional[Decimal] = Field(None, decimal_places=2)
+
+    model_config = {"from_attributes": True}

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.exc import IntegrityError
 
-from schemas.movies import MovieCreateSchema, MovieListItemSchema, MovieDetailSchema
+from schemas.movies import MovieCreateSchema, MovieListItemSchema, MovieDetailSchema, MovieUpdateSchema
 from database import get_db, Movie
 from database.models.movies import Certification, Genre, Star, Director
 from routes.utils import get_or_create_related
@@ -144,3 +144,83 @@ async def create_movie(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Integrity error. Ensure all related data is valid."
         )
+
+
+@router.patch(
+    "/movies/{movie_id}/",
+    response_model=MovieDetailSchema,
+    status_code=status.HTTP_200_OK
+)
+async def update_movie(
+    movie_id: int,
+    movie_data: MovieUpdateSchema,
+    db: AsyncSession = Depends(get_db),
+) -> MovieDetailSchema:
+    """
+    Updates a movie by ID.
+
+    Raises HTTPException with 404_NOT_FOUND if the movie doesn't exist.
+    Raises HTTPException with 400_BAD_REQUEST if no fields are provided for update.
+    Raises HTTPException with 400_BAD_REQUEST if integrity error occurs on update.
+    """
+    stmt = (select(Movie).where(Movie.id == movie_id))
+    result = await db.execute(stmt)
+    movie = result.unique().scalar_one_or_none()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Movie with ID {movie_id} not found."
+        )
+    
+    # Extract only the fields sent in the request
+    update_data = movie_data.model_dump(exclude_unset=True)
+    
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No fields provided for update."
+        )
+
+    # Apply changes
+    for field, value in update_data.items():
+        setattr(movie, field, value)
+
+    try:
+        await db.commit()
+        # Refresh to get any server-side computed values
+        await db.refresh(
+            movie, ["certification", "genres", "stars", "directors"]
+        )
+        return movie
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Integrity error. Ensure values are unique/valid."
+        )
+
+
+@router.delete(
+    "/movies/{movie_id}/",
+    status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_movie(
+    movie_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Deletes a movie by ID.
+
+    Raises HTTPException with 404_NOT_FOUND if the movie doesn't exist.
+    """
+    movie = await db.get(Movie, movie_id)
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Movie with ID {movie_id} not found."
+        )
+
+    await db.delete(movie)
+    await db.commit()
