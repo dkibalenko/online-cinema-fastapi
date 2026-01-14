@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Annotated, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi_pagination import Page
 from fastapi_pagination.ext.sqlalchemy import paginate
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.exc import IntegrityError
+from pydantic import BaseModel, Field
 
 from schemas.movies import MovieCreateSchema, MovieListItemSchema, MovieDetailSchema, MovieUpdateSchema
 from database import get_db, Movie
@@ -15,19 +17,76 @@ from routes.utils import get_or_create_related
 router = APIRouter()
 
 
+class MovieFilterParams(BaseModel):
+    year: Optional[int] = Field(None, description="Filter by year")
+    min_imdb: Optional[float] = Field(
+        None, description="Filter by minimum IMDb rating"
+    )
+    min_price: Optional[float] = Field(
+        None, description="Filter by minimum price"
+    )
+    max_price: Optional[float] = Field(
+        None, description="Filter by maximum price"
+    )
+
+
+class MovieSortParams(BaseModel):
+    sort_by: Optional[str] = Field(
+        "id",
+        pattern="^(id|name|year|imdb|votes|price)$",
+        description="Field to sort by"
+    )
+    order: Optional[str] = Field(
+        "desc",
+        pattern="^(asc|desc)$",
+        description="Sort order: asc or desc"
+    )
+
+
 @router.get(
     "/movies/",
     response_model=Page[MovieListItemSchema],
     status_code=status.HTTP_200_OK
 )
 async def get_movie_list(
+    filter_query: MovieFilterParams = Depends(),
+    sort_query: MovieSortParams = Depends(),
     db: AsyncSession = Depends(get_db)
 ) -> Page[MovieListItemSchema]:
     """
-    Returns a paginated list of movies. 
-    fastapi-pagination handles the 'Page' wrapper and SQL execution.
+    Fetches a list of movies with pagination.
+
+    Parameters:
+    - filter_query: FilterParams - filter by year, minimum IMDb rating, 
+        minimum price, maximum price
+    - sort_query: SortParams - sort by id, name, year, IMDb rating, votes, 
+        price, with an option to sort in ascending or descending order
+
+    Returns:
+    - Page[MovieListItemSchema] - a paginated list of movies
     """
-    stmt = select(Movie).order_by(Movie.id.desc())
+    stmt = select(Movie)
+
+    # 1. Apply Filtering
+    if filter_query.year is not None:
+        stmt = stmt.where(Movie.year == filter_query.year)
+
+    if filter_query.min_imdb is not None:
+        stmt = stmt.where(Movie.imdb >= filter_query.min_imdb)
+
+    if filter_query.min_price is not None:
+        stmt = stmt.where(Movie.price >= filter_query.min_price)
+
+    if filter_query.max_price is not None:
+        stmt = stmt.where(Movie.price <= filter_query.max_price)
+
+    # 2. Apply Sorting
+    sort_column = getattr(Movie, sort_query.sort_by)
+
+    if sort_query.order == "desc":
+        stmt = stmt.order_by(sort_column.desc())
+    else:
+        stmt = stmt.order_by(sort_column.asc())
 
     return await paginate(db, stmt)
 
