@@ -1,14 +1,20 @@
-from typing import Annotated, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi_pagination import Page
 from fastapi_pagination.ext.sqlalchemy import paginate
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, Field
 
-from schemas.movies import MovieCreateSchema, MovieListItemSchema, MovieDetailSchema, MovieUpdateSchema
+from schemas.movies import (
+    MovieCreateSchema,
+    MovieListItemSchema,
+    MovieDetailSchema,
+    MovieUpdateSchema
+)
 from database import get_db, Movie
 from database.models.movies import Certification, Genre, Star, Director
 from routes.utils import get_or_create_related
@@ -18,6 +24,9 @@ router = APIRouter()
 
 
 class MovieFilterParams(BaseModel):
+    search: Optional[str] = Field(
+        None, description="Search by title, description, star, or director"
+    )
     year: Optional[int] = Field(None, description="Filter by year")
     min_imdb: Optional[float] = Field(
         None, description="Filter by minimum IMDb rating"
@@ -54,20 +63,36 @@ async def get_movie_list(
     db: AsyncSession = Depends(get_db)
 ) -> Page[MovieListItemSchema]:
     """
-    Fetches a list of movies with pagination.
+    Get a list of movies based on filtering and sorting parameters.
 
-    Parameters:
-    - filter_query: FilterParams - filter by year, minimum IMDb rating, 
-        minimum price, maximum price
-    - sort_query: SortParams - sort by id, name, year, IMDb rating, votes, 
-        price, with an option to sort in ascending or descending order
+    Args:
+        filter_query (MovieFilterParams): Filter parameters.
+        sort_query (MovieSortParams): Sort parameters.
+        db (AsyncSession): Database session.
 
     Returns:
-    - Page[MovieListItemSchema] - a paginated list of movies
+        Page[MovieListItemSchema]: Paginated list of movies.
     """
-    stmt = select(Movie)
+    stmt = select(Movie).distinct()
 
-    # 1. Apply Filtering
+    # 1. Apply Search
+    if filter_query.search:
+        search_term = f"%{filter_query.search}%"
+        
+        # join relationships needed for searching
+        # use outerjoin so we don't exclude movies that have no stars/directors
+        stmt = stmt.outerjoin(Movie.stars).outerjoin(Movie.directors)
+        
+        stmt = stmt.where(
+            or_(
+                Movie.name.ilike(search_term),
+                Movie.description.ilike(search_term),
+                Star.name.ilike(search_term),
+                Director.name.ilike(search_term)
+            )
+        )
+
+    # 2. Apply Filtering
     if filter_query.year is not None:
         stmt = stmt.where(Movie.year == filter_query.year)
 
