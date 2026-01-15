@@ -16,7 +16,7 @@ POSTGRESQL_DATABASE_URL = (
     f"{settings.POSTGRES_DB_PORT}/{settings.POSTGRES_DB}"
 )
 
-postgresql_engine = create_async_engine(POSTGRESQL_DATABASE_URL, echo=False)
+postgresql_engine = create_async_engine(POSTGRESQL_DATABASE_URL, echo=True)
 
 AsyncPostgresqlSessionLocal = sessionmaker(  # type: ingore
     bind=postgresql_engine,
