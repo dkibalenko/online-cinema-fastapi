@@ -16,7 +16,13 @@ from schemas.movies import (
     MovieUpdateSchema
 )
 from database import get_db, Movie
-from database.models.movies import Certification, Genre, Star, Director
+from database.models.movies import (
+    Certification,
+    Genre,
+    MoviesGenresModel,
+    Star,
+    Director
+)
 from routes.utils import get_or_create_related
 
 
@@ -24,6 +30,10 @@ router = APIRouter()
 
 
 class MovieFilterParams(BaseModel):
+    genre_id: Optional[int] = Field(
+        None,
+        description="Filter movies by genre ID"
+    )
     search: Optional[str] = Field(
         None, description="Search by title, description, star, or director"
     )
@@ -53,7 +63,7 @@ class MovieSortParams(BaseModel):
 
 
 @router.get(
-    "/movies/",
+    "/",
     response_model=Page[MovieListItemSchema],
     status_code=status.HTTP_200_OK
 )
@@ -62,23 +72,21 @@ async def get_movie_list(
     sort_query: MovieSortParams = Depends(),
     db: AsyncSession = Depends(get_db)
 ) -> Page[MovieListItemSchema]:
-    """
-    Get a list of movies based on filtering and sorting parameters.
-
-    Args:
-        filter_query (MovieFilterParams): Filter parameters.
-        sort_query (MovieSortParams): Sort parameters.
-        db (AsyncSession): Database session.
-
-    Returns:
-        Page[MovieListItemSchema]: Paginated list of movies.
-    """
     stmt = select(Movie).distinct()
 
-    # 1. Apply Search
+    # 1. Apply Genre Filter (Clicking on a genre)
+    if filter_query.genre_id is not None:
+        # Join the association table to filter by genre_id
+        stmt = (
+            stmt
+            .join(MoviesGenresModel)
+            .where(MoviesGenresModel.c.genre_id == filter_query.genre_id)
+        )
+
+    # 2. Apply Search
     if filter_query.search:
         search_term = f"%{filter_query.search}%"
-        
+
         # join relationships needed for searching
         # use outerjoin so we don't exclude movies that have no stars/directors
         stmt = stmt.outerjoin(Movie.stars).outerjoin(Movie.directors)
@@ -92,7 +100,7 @@ async def get_movie_list(
             )
         )
 
-    # 2. Apply Filtering
+    # 3. Apply Filtering
     if filter_query.year is not None:
         stmt = stmt.where(Movie.year == filter_query.year)
 
@@ -105,7 +113,7 @@ async def get_movie_list(
     if filter_query.max_price is not None:
         stmt = stmt.where(Movie.price <= filter_query.max_price)
 
-    # 2. Apply Sorting
+    # 4. Apply Sorting
     sort_column = getattr(Movie, sort_query.sort_by)
 
     if sort_query.order == "desc":
@@ -117,7 +125,7 @@ async def get_movie_list(
 
 
 @router.get(
-    "/movies/{movie_id}/", 
+    "/{movie_id}/", 
     response_model=MovieDetailSchema,
     status_code=status.HTTP_200_OK
 )
@@ -155,7 +163,7 @@ async def get_movie_detail(
 
 
 @router.post(
-    "/movies/",
+    "/",
     response_model=MovieDetailSchema,
     status_code=status.HTTP_201_CREATED
 )
@@ -231,7 +239,7 @@ async def create_movie(
 
 
 @router.patch(
-    "/movies/{movie_id}/",
+    "/{movie_id}/",
     response_model=MovieDetailSchema,
     status_code=status.HTTP_200_OK
 )
@@ -286,7 +294,7 @@ async def update_movie(
 
 
 @router.delete(
-    "/movies/{movie_id}/",
+    "/{movie_id}/",
     status_code=status.HTTP_204_NO_CONTENT
 )
 async def delete_movie(
