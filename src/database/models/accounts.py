@@ -1,9 +1,20 @@
-from typing import List
+from typing import List, Optional
 import enum
 from datetime import datetime, date, timedelta, timezone
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Enum, Integer, String, Boolean, DateTime, func, ForeignKey
+from sqlalchemy import (
+    Enum,
+    Integer,
+    String,
+    Boolean,
+    DateTime,
+    func,
+    ForeignKey,
+    Date,
+    Text,
+    UniqueConstraint
+)
 
 from database.models.base import Base
 
@@ -67,7 +78,6 @@ class User(Base):
         nullable=False
     )
     group_id: Mapped[int] = mapped_column(
-        Integer,
         ForeignKey("user_groups.id", ondelete="CASCADE"),
         nullable=False
     )
@@ -75,3 +85,35 @@ class User(Base):
         "UserGroup",
         back_populates="users"
     )
+
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True
+    )
+    first_name: Mapped[Optional[str]] = mapped_column(String(100))
+    last_name: Mapped[Optional[str]] = mapped_column(String(100))
+    avatar: Mapped[Optional[str]] = mapped_column(String(255))
+    gender: Mapped[Optional[GenderEnum]] = mapped_column(Enum(GenderEnum))
+    date_of_birth: Mapped[Optional[date]] = mapped_column(Date)
+    info: Mapped[Optional[str]] = mapped_column(Text)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True
+    )
+    user: Mapped[User] = relationship("User", back_populates="profile")
+
+    __table_args__ = (UniqueConstraint("user_id"),)
+
+    def __repr__(self):
+        return (
+            f"UserProfile(id={self.id}, first_name={self.first_name}, "
+            f"last_name={self.last_name}, gender={self.gender}, "
+            f"date_of_birth={self.date_of_birth}, user_id={self.user_id})"
+        )
