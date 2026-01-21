@@ -17,6 +17,7 @@ from sqlalchemy import (
 )
 
 from database.models.base import Base
+from security.utils import generate_secure_token
 
 
 class UserGroupEnum(str, enum.Enum):
@@ -116,4 +117,79 @@ class UserProfile(Base):
             f"UserProfile(id={self.id}, first_name={self.first_name}, "
             f"last_name={self.last_name}, gender={self.gender}, "
             f"date_of_birth={self.date_of_birth}, user_id={self.user_id})"
+        )
+
+
+class TokenBaseModel(Base):
+    __abstract__ = True
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True
+    )
+    token: Mapped[str] = mapped_column(
+        String(255),
+        unique=True,
+        nullable=False,
+        default=generate_secure_token
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc) + timedelta(days=1)
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+
+class ActivationToken(TokenBaseModel):
+    __tablename__ = "activation_tokens"
+
+    user: Mapped[User] = relationship(
+        "User",
+        back_populates="activation_token"
+    )
+
+    __table_args__ = (UniqueConstraint("user_id"),)
+
+    def __repr__(self):
+        return (
+            f"ActivationToken(id={self.id}, token={self.token}, "
+            f"expires_at={self.expires_at}, user_id={self.user_id})"
+        )
+
+
+class PasswordResetToken(TokenBaseModel):
+    __tablename__ = "password_reset_tokens"
+
+    user: Mapped[User] = relationship(
+        "User",
+        back_populates="password_reset_token"
+    )
+
+    __table_args__ = (UniqueConstraint("user_id"),)
+
+    def __repr__(self):
+        return (
+            f"PasswordResetToken(id={self.id}, token={self.token}, "
+            f"expires_at={self.expires_at}, user_id={self.user_id})"
+        )
+
+
+class RefreshToken(TokenBaseModel):
+    __tablename__ = "refresh_tokens"
+
+    user: Mapped[User] = relationship(
+        "User",
+        back_populates="refresh_token"
+    )
+
+    def __repr__(self):
+        return (
+            f"RefreshToken(id={self.id}, token={self.token}, "
+            f"expires_at={self.expires_at}, user_id={self.user_id})"
         )
