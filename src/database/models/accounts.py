@@ -86,6 +86,17 @@ class User(Base):
         "UserGroup",
         back_populates="users"
     )
+    profile: Mapped[Optional["UserProfile"]] = relationship(
+        "UserProfile",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+    def __repr__(self):
+        return (
+            f"User(id={self.id}, email={self.email}, "
+            f"is_active={self.is_active}, group_id={self.group_id})"
+        )
 
 
 class UserProfile(Base):
