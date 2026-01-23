@@ -32,6 +32,10 @@ class Settings(BaseAppSettings):
     POSTGRES_DB_PORT: int = int(os.getenv("POSTGRES_DB_PORT", 5432))
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "cinema_db")
 
+    JWT_SECRET_KEY_ACCESS: str = os.getenv("JWT_SECRET_KEY_ACCESS", os.urandom(32))
+    JWT_SECRET_KEY_REFRESH: str = os.getenv("JWT_SECRET_KEY_REFRESH", os.urandom(32))
+    JWT_SIGNING_ALGORITHM: str = os.getenv("JWT_SIGNING_ALGORITHM", "HS256")
+
 
 class TestingSettings(BaseAppSettings):
     PATH_TO_DB: str = ":memory:"
