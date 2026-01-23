@@ -2,7 +2,7 @@ from typing import List, Optional
 import enum
 from datetime import datetime, date, timedelta, timezone
 
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 from sqlalchemy import (
     Enum,
     Integer,
@@ -17,7 +17,9 @@ from sqlalchemy import (
 )
 
 from database.models.base import Base
+from database.validators import accounts as accounts_validators
 from security.utils import generate_secure_token
+from security.passwords import hash_password, verify_password
 
 
 class UserGroupEnum(str, enum.Enum):
@@ -97,6 +99,57 @@ class User(Base):
             f"User(id={self.id}, email={self.email}, "
             f"is_active={self.is_active}, group_id={self.group_id})"
         )
+
+    def has_group(self, group_name: UserGroupEnum) -> bool:
+        """
+        Check if the user has the given group.
+
+        Args:
+            group_name: The group to check.
+
+        Returns:
+            True if the user has the group, False otherwise.
+        """
+        return self.group.name == group_name
+
+    @classmethod
+    def create(
+        cls,
+        email: str,
+        raw_password: str,
+        group_id: int | Mapped[int]
+    ) -> "User":
+        user = cls(email=email, group_id=group_id)
+        user.password = raw_password
+
+        return user
+
+    @property
+    def password(self) -> None:
+        raise AttributeError(
+            "Password is write-only. User the setter to set the password."
+        )
+
+    @password.setter
+    def password(self, raw_password: str) -> None:
+        """
+        Validate and set the user's password.
+        """
+        accounts_validators.validate_password_complexity(raw_password)
+        self._hashed_password = hash_password(raw_password)
+
+    def verify_password(self, raw_password: str) -> bool:
+        """
+        Verify the given password against the user's hashed password.
+        """
+        return verify_password(raw_password, self._hashed_password)
+
+    @validates("email")
+    def validate_email(self, key: str, email: str) -> str:
+        """
+        Validates the given email address against email address syntax rules.
+        """
+        return accounts_validators.validate_email(email)
 
 
 class UserProfile(Base):
