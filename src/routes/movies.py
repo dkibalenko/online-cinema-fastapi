@@ -9,7 +9,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, Field
 
-from schemas.movies import (
+from schemas import (
     MovieCreateSchema,
     MovieListItemSchema,
     MovieDetailSchema,

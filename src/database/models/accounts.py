@@ -17,7 +17,7 @@ from sqlalchemy import (
 )
 
 from database.models.base import Base
-from database.validators import accounts as accounts_validators
+from database import accounts_validators
 from security.utils import generate_secure_token
 from security.passwords import hash_password, verify_password
 
@@ -251,6 +251,22 @@ class RefreshToken(TokenBaseModel):
         "User",
         back_populates="refresh_token"
     )
+
+    @classmethod
+    def create(
+        cls,
+        user_id: int | Mapped[int],
+        days_valid: int,
+        token: str
+    ) -> "RefreshToken":
+        """
+        Factory method to create a new RefreshToken object.
+
+        Simplifies the creation process by automatically calculating and 
+        setting the expiration date based on the number of days specified.
+        """
+        expires_at = datetime.now(timezone.utc) + timedelta(days=days_valid)
+        return cls(user_id=user_id, token=token, expires_at=expires_at)
 
     def __repr__(self):
         return (

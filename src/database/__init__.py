@@ -10,6 +10,17 @@ from database.models.movies import (
     MoviesGenresModel,
     MoviesStarsModel
 )
+from database.models.accounts import (
+    User,
+    UserGroup,
+    UserGroupEnum,
+    ActivationToken,
+    PasswordResetToken,
+    RefreshToken,
+    UserProfile
+)
+
+from database.validators import accounts as accounts_validators
 
 from database.session_postgres import (
     get_postgresql_db as get_db,
