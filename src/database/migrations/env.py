@@ -5,7 +5,7 @@ from sqlalchemy import pool
 
 from alembic import context
 
-from database.models import movies  # noqa: F401
+from database.models import movies, accounts  # noqa: F401
 from database.models.base import Base
 from database.session_postgres import sync_postgresql_engine
 
