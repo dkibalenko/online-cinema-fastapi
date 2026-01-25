@@ -44,3 +44,17 @@ class JWTAuthManagerInterface(ABC):
         Decode and validate a refresh token.
         """
         pass
+
+    @abstractmethod
+    def verify_refresh_token_or_raise(self, token: str) -> None:
+        """
+        Verify a refresh token or raise an error if invalid.
+        """
+        pass
+
+    @abstractmethod
+    def verify_access_token_or_raise(self, token: str) -> None:
+        """
+        Verify an access token or raise an error if invalid.
+        """
+        pass
