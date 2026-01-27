@@ -1,25 +1,49 @@
+# src/main.py
 from fastapi import FastAPI
-from fastapi_pagination import add_pagination
 
-from routes import movie_router, genre_router
+from pagination import setup_pagination
+from logger_config import setup_logging
+from rate_limiting import limiter
+
+# from auth.router import router as auth_router
+from movies.router import router as movies_router
+from movies.genres_router import router as genres_router
 
 
-app = FastAPI(
-    title="Online Cinema",
-    description=(
-        "A digital platform that allows users to select, watch, "
-        "and purchase access to movies and other video materials "
-        "via the internet."
+def create_app() -> FastAPI:
+    setup_logging()
+
+    app = FastAPI(
+        title="Online Cinema",
+        description=(
+            "A digital platform that allows users to select, watch, "
+            "and purchase access to movies and other video materials "
+            "via the internet."
+        ),
     )
-)
 
-add_pagination(app)
+    # Pagination
+    setup_pagination(app)
 
-api_version_prefix = "/api/v1"
+    # Routers
+    api_version_prefix = "/api/v1"
 
-app.include_router(
-    movie_router, prefix=f"{api_version_prefix}/movies", tags=["movies"]
-)
-app.include_router(
-    genre_router, prefix=f"{api_version_prefix}/genres", tags=["genres"]
-)
+    # app.include_router(
+    #     auth_router, prefix=f"{api_version_prefix}/auth", tags=["auth"]
+    # )
+    app.include_router(
+        movies_router, prefix=f"{api_version_prefix}/movies", tags=["movies"]
+    )
+    app.include_router(
+        genres_router, prefix=f"{api_version_prefix}/genres", tags=["genres"]
+    )
+
+    # Middleware
+    app.add_middleware(limiter)
+
+    # Optionally: integrate slowapi middleware here later
+
+    return app
+
+
+app = create_app()

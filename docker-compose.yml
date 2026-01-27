@@ -51,6 +51,8 @@ services:
         condition: service_healthy
     volumes:
       - ./src:/usr/src/fastapi
+      - ./alembic.ini:/usr/src/alembic.ini:ro
+      - ./alembic:/usr/src/alembic:ro
     networks:
       - fastapi_network
     stdin_open: true
@@ -65,6 +67,8 @@ services:
         condition: service_healthy
     volumes:
       - ./src:/usr/src/fastapi
+      - ./alembic.ini:/usr/src/alembic.ini:ro
+      - ./alembic:/usr/src/alembic:ro
     env_file:
       - .env
     environment:
