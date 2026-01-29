@@ -27,7 +27,7 @@ def create_app() -> FastAPI:
     setup_pagination(app)
 
     # Routers
-    api_version_prefix = "/api/v1"
+    api_version_prefix = "/api/v1/cinema"
 
     # app.include_router(
     #     auth_router, prefix=f"{api_version_prefix}/auth", tags=["auth"]
