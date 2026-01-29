@@ -1,5 +1,6 @@
 # src/main.py
 from fastapi import FastAPI
+from slowapi.middleware import SlowAPIMiddleware
 
 from pagination import setup_pagination
 from logger_config import setup_logging
@@ -39,9 +40,8 @@ def create_app() -> FastAPI:
     )
 
     # Middleware
-    app.add_middleware(limiter)
-
-    # Optionally: integrate slowapi middleware here later
+    app.state.limiter = limiter
+    app.add_middleware(SlowAPIMiddleware)
 
     return app
 
