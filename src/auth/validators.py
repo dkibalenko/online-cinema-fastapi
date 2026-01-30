@@ -7,7 +7,9 @@ def validate_password_complexity(password: str) -> str:
     if len(password) < 8:
         raise ValueError("Password must contain at least 8 characters.")
     if not re.search(r'[A-Z]', password):
-        raise ValueError("Password must contain at least one uppercase letter.")
+        raise ValueError(
+            "Password must contain at least one uppercase letter."
+        )
     if not re.search(r'[a-z]', password):
         raise ValueError("Password must contain at least one lower letter.")
     if not re.search(r'\d', password):
@@ -21,8 +23,17 @@ def validate_password_complexity(password: str) -> str:
 
 
 def validate_email(user_email: str) -> str:
+    """
+    Validates an email address.
+
+    :param user_email: The email address to validate.
+    :return: The validated email address.
+    :raises ValueError: If the email address is not valid.
+    """
     try:
-        email_info = email_validator.validate_email(user_email, check_deliverability=False)
+        email_info = email_validator.validate_email(
+            user_email, check_deliverability=False
+        )
         email = email_info.normalized
     except email_validator.EmailNotValidError as error:
         raise ValueError(str(error))

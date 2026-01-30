@@ -147,4 +147,4 @@ class JsonDataGenerator:
         if not os.path.exists(self._dirs_json):
             await self._generate_names(self._dirs_json, "directors", count)
 
-        log.info("All JSON seed files are ready.")
+        log.info("✅ All JSON seed files are ready.")

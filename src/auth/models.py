@@ -151,6 +151,8 @@ class User(Base):
     def password(self, raw_password: str) -> None:
         """
         Validate and set the user's password.
+
+        The given password will be validated, hashed and stored.
         """
         validate_password_complexity(raw_password)
         self._hashed_password = hash_password(raw_password)

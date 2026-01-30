@@ -10,6 +10,7 @@ from logger_config import setup_logging, get_logger
 from config import get_settings
 from database import get_db_contextmanager
 
+from auth.models import UserGroup, UserGroupEnum
 from movies.models import (
     Movie,
     Certification,
@@ -26,7 +27,7 @@ from seeding.generate_json import JsonDataGenerator
 log = get_logger()
 
 
-class MovieDatabaseSeeder:
+class InitialDatabaseSeeder:
     def __init__(self, db_session: AsyncSession, settings: Any):
         self.db = db_session
         self.paths = {
@@ -42,7 +43,16 @@ class MovieDatabaseSeeder:
         async with aiofiles.open(path, "r", encoding="utf-8") as f:
             return json.loads(await f.read())
 
-    async def _insert_unique_by_name(self, model, items: List[Dict[str, Any]]) -> Dict[str, int]:
+    async def _insert_unique_by_name(
+        self,
+        model,
+        items: List[Dict[str, Any]]
+    ) -> Dict[str, int]:
+        """
+        Inserts items into the database if they don't already exist.
+        Returns a dictionary mapping item names to their IDs in the database.
+        """
+        
         if not items:
             return {}
 
@@ -62,7 +72,11 @@ class MovieDatabaseSeeder:
 
         return existing
 
-    async def _insert_movies(self, movies: List[Dict[str, Any]], cert_map: Dict[str, int]) -> Dict[str, int]:
+    async def _insert_movies(
+        self,
+        movies: List[Dict[str, Any]],
+        cert_map: Dict[str, int]
+    ) -> Dict[str, int]:
         if not movies:
             return {}
 
@@ -123,28 +137,68 @@ class MovieDatabaseSeeder:
         if movie_stars:
             await self.db.execute(insert(MoviesStarsModel), movie_stars)
         if movie_directors:
-            await self.db.execute(insert(MoviesDirectorsModel), movie_directors)
+            await self.db.execute(
+                insert(MoviesDirectorsModel), movie_directors
+            )
+
+    async def _seed_user_groups(self) -> None:
+        """
+        Seeds the UserGroup table with the following groups:
+            - USER
+            - MODERATOR
+            - ADMIN
+
+        If any of the groups already exist, they are skipped.
+        """
+        groups = [
+            {"name": UserGroupEnum.USER},
+            {"name": UserGroupEnum.MODERATOR},
+            {"name": UserGroupEnum.ADMIN},
+        ]
+
+        stmt = (
+            select(UserGroup)
+            .where(UserGroup.name.in_(
+                    [g["name"] for g in groups]
+                )
+            )
+        )
+        result = await self.db.execute(stmt)
+        existing = {row.name for row in result.scalars().all()}
+
+        to_insert = [g for g in groups if g["name"] not in existing]
+
+        if to_insert:
+            await self.db.execute(insert(UserGroup), to_insert)
+            await self.db.flush()
 
     async def seed(self) -> None:
-        log.info("Starting database seeding...")
+        log.info("🔃 Starting database seeding...")
 
+        # 1. Seed user groups
+        await self._seed_user_groups()
+
+        # 2. Load JSON data
         certs = await self._load_json("certifications")
         genres = await self._load_json("genres")
         stars = await self._load_json("stars")
         dirs = await self._load_json("directors")
         movies = await self._load_json("movies")
 
+        # 3. Insert base tables
         cert_map = await self._insert_unique_by_name(Certification, certs)
         genre_map = await self._insert_unique_by_name(Genre, genres)
         star_map = await self._insert_unique_by_name(Star, stars)
         director_map = await self._insert_unique_by_name(Director, dirs)
 
+        # 4. Insert movies
         movie_map = await self._insert_movies(movies, cert_map)
 
+        # 5. Insert associations
         await self._seed_associations(movie_map, genre_map, star_map, director_map)
 
         await self.db.commit()
-        log.info("Database seeding completed successfully.")
+        log.info("✅ Database seeding completed successfully.")
 
 
 async def main() -> None:
@@ -163,10 +217,10 @@ async def main() -> None:
 
             await generator.ensure_json_files_exist()
 
-            seeder = MovieDatabaseSeeder(db, settings)
+            seeder = InitialDatabaseSeeder(db, settings)
             await seeder.seed()
     except Exception as e:
-        log.error("Database seeding failed: %s", e)
+        log.error("❌ Database seeding failed: %s", e)
         raise
 
 
