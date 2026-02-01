@@ -11,27 +11,63 @@ from auth.models import User, UserGroupEnum
 
 from auth.interfaces import JWTAuthManagerInterface
 from auth.token_manager import JWTAuthManager
+from auth.repository import UserRepository
 from config import BaseAppSettings
+from auth.service import AuthService
+from auth.interfaces import EmailSenderInterface
+from auth.email_manager import EmailSender
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
+
+def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
+    """
+    Retrieves an instance of the `UserRepository` class based on the provided
+    database session.
+
+    The `UserRepository` provides methods for performing CRUD operations
+    on users.
+
+    Args:
+        db (AsyncSession): The database session to use for database operations.
+
+    Returns:
+        `UserRepository`: An instance of the `UserRepository` class.
+    """
+    return UserRepository(db)
+
+
+def get_email_sender(settings: BaseAppSettings = Depends(get_settings)):
+    return EmailSender(
+        hostname=settings.SMTP_SERVER,
+        port=settings.SMTP_PORT,
+        username=settings.SMTP_USERNAME,
+        password=settings.SMTP_PASSWORD,
+        use_tls=settings.SMTP_USE_TLS,
+        template_dir=settings.PATH_TO_EMAIL_TEMPLATES_DIR,
+        activation_email_template_name=settings.ACTIVATION_EMAIL_TEMPLATE_NAME,
+        activation_complete_email_template_name=settings.ACTIVATION_COMPLETE_EMAIL_TEMPLATE_NAME,
+        password_email_template_name=settings.PASSWORD_RESET_TEMPLATE_NAME,
+        password_complete_email_template_name=settings.PASSWORD_RESET_COMPLETE_TEMPLATE_NAME,
+    )
+
 def get_jwt_auth_manager(
     settings: BaseAppSettings = Depends(get_settings)
 ) -> JWTAuthManagerInterface:
     """
-    Retrieves an instance of the JWTAuthManager class based on 
-    the application settings which implements the JWTAuthManagerInterface.
+    Retrieves an instance of the `JWTAuthManager` class based on 
+    the application settings which implements the `JWTAuthManagerInterface`.
 
     The manager is configured with the secret keys for access & refresh tokens
     and JWT signing algorithm defined in the settings.
 
     Args:
-        settings (BaseAppSettings): The application settings.
+        `settings` (BaseAppSettings): The application settings.
 
     Returns:
-        JWTAuthManager: An instance of the JWTAuthManager class.    
+        `JWTAuthManager`: An instance of the `JWTAuthManager` class.    
     """
     return JWTAuthManager(
         secret_key_access=settings.JWT_SECRET_KEY_ACCESS,
@@ -110,3 +146,26 @@ def require_role(*allowed_roles: UserGroupEnum):
             )
         return current_user
     return role_checker
+
+
+def get_auth_service(
+    users: UserRepository = Depends(get_user_repository),
+    jwt = Depends(get_jwt_auth_manager),
+    email_sender: EmailSenderInterface = Depends(get_email_sender),
+) -> AuthService:
+    """
+    Dependency factory that returns an instance of AuthService.
+
+    The AuthService instance is created with the following dependencies:
+    - users: UserRepository instance
+    - jwt: JWTAuthManager instance
+    - email_sender: EmailSenderInterface instance
+
+    Returns:
+        AuthService: An instance of AuthService
+    """
+    return AuthService(
+        users=users,
+        jwt=jwt,
+        email_sender=email_sender,
+    )
