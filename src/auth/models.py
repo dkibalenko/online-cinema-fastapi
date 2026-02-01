@@ -213,7 +213,7 @@ class TokenBaseModel(Base):
         String(255),
         unique=True,
         nullable=False,
-        default=generate_secure_token
+        default=generate_secure_token  # when create the token, its value is set before flush()
     )
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

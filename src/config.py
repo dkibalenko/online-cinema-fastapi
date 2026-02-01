@@ -1,5 +1,3 @@
-# src/config.py
-import os
 from pathlib import Path
 
 from pydantic_settings import BaseSettings
@@ -15,6 +13,7 @@ class BaseAppSettings(BaseSettings):
 
     BASE_DIR: Path = Path(__file__).parent
 
+    # Safe defaults
     CERT_JSON_PATH: str = str(
         BASE_DIR / "seeding" / "seed_data" / "certifications.json"
     )
@@ -31,13 +30,14 @@ class BaseAppSettings(BaseSettings):
         BASE_DIR / "seeding" / "seed_data" / "directors.json"
     )
 
-    # Pydantic will override these defaults from .env
-    SMTP_SERVER: str = "smtp.gmail.com"
-    SMTP_PORT: int = 587
-    SMTP_USERNAME: str = "testuser"
-    SMTP_PASSWORD: str = "testpassword"
-    SMTP_USE_TLS: bool = False
+    # Required sensitive values - Pydantic will override from .env
+    SMTP_SERVER: str
+    SMTP_PORT: int
+    SMTP_USERNAME: str
+    SMTP_PASSWORD: str
+    SMTP_USE_TLS: bool
 
+    # Safe defaults
     PATH_TO_EMAIL_TEMPLATES_DIR: str = str(BASE_DIR / "auth" / "templates")
     ACTIVATION_EMAIL_TEMPLATE_NAME: str = "activation_request.html"
     ACTIVATION_COMPLETE_EMAIL_TEMPLATE_NAME: str = "activation_complete.html"
@@ -46,16 +46,16 @@ class BaseAppSettings(BaseSettings):
 
 
 class Settings(BaseAppSettings):
-    # Pydantic will override these defaults from .env
+    # Optional defaults — Pydantic will override from .env if present
     POSTGRES_USER: str = "cinema_user"
     POSTGRES_PASSWORD: str = "cinema_password"
     POSTGRES_HOST: str = "localhost"
     POSTGRES_DB_PORT: int = 5432
     POSTGRES_DB: str = "cinema_db"
 
-    JWT_SECRET_KEY_ACCESS: SecretStr = SecretStr("default_access")
-    JWT_SECRET_KEY_REFRESH: SecretStr = SecretStr("default_refresh")
-    JWT_SIGNING_ALGORITHM: str = "HS256"
+    JWT_SECRET_KEY_ACCESS: SecretStr
+    JWT_SECRET_KEY_REFRESH: SecretStr
+    JWT_SIGNING_ALGORITHM: str
 
 
 def get_settings() -> BaseAppSettings:
