@@ -93,21 +93,18 @@ class User(Base):
     activation_token: Mapped["ActivationToken"] = relationship(
         "ActivationToken",
         back_populates="user",
-        uselist=False,
         cascade="all, delete-orphan"
     )
 
     password_reset_token: Mapped["PasswordResetToken"] = relationship(
         "PasswordResetToken",
         back_populates="user",
-        uselist=False,
         cascade="all, delete-orphan"
     )
 
-    refresh_token: Mapped["RefreshToken"] = relationship(
+    refresh_tokens: Mapped[List["RefreshToken"]] = relationship(
         "RefreshToken",
         back_populates="user",
-        uselist=False,
         cascade="all, delete-orphan"
     )
 
@@ -264,9 +261,9 @@ class PasswordResetToken(TokenBaseModel):
 class RefreshToken(TokenBaseModel):
     __tablename__ = "refresh_tokens"
 
-    user: Mapped[User] = relationship(
+    user: Mapped["User"] = relationship(
         "User",
-        back_populates="refresh_token"
+        back_populates="refresh_tokens"
     )
 
     @classmethod

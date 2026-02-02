@@ -12,6 +12,9 @@ from auth.models import (
 
 
 class UserRepository:
+    """
+    Repository for user-related database operations.
+    """
     def __init__(self, db: AsyncSession):
         self.db = db
 
