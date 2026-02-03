@@ -1,7 +1,11 @@
+from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 from auth.models import (
+    TokenBaseModel,
     User,
     UserGroup,
     ActivationToken,
@@ -43,8 +47,8 @@ class UserRepository:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    def add(self, user: User) -> None:
-        self.db.add(user)
+    def add(self, obj: Any) -> None:
+        self.db.add(obj)
 
     async def flush(self) -> None:
         await self.db.flush()
@@ -52,10 +56,42 @@ class UserRepository:
     async def commit(self) -> None:
         await self.db.commit()
 
-    async def refresh(self, user: User) -> None:
-        await self.db.refresh(user)
+    async def refresh(self, obj: Any) -> None:
+        await self.db.refresh(obj)
 
     async def rollback(self) -> None:
         await self.db.rollback()
+
+    async def delete_activation_token(self, token: ActivationToken) -> None:
+        await self.db.delete(token)
+
+    async def get_activation_token_record(
+        self,
+        email: str,
+        token: str
+    ) -> ActivationToken | None:
+        """
+        Retrieves the activation token record with the given email and token.
+
+        Args:
+            email (str): The email address associated with the activation token.
+            token (str): The activation token.
+
+        Returns:
+            ActivationToken | None: The activation token record if found, otherwise None.
+        """
+        stmt = (
+            select(ActivationToken)
+            .options(joinedload(ActivationToken.user))  # eager loading
+            .join(User)  # for filtering. Effects WHERE clause
+            .where(
+                User.email == email,
+                ActivationToken.token == token
+            )
+        )
+
+        result = await self.db.execute(stmt)
+        # After joinedload() use .unique() that deduplicates ORM objects
+        return result.unique().scalar_one_or_none()
 
     # later: methods for tokens, activation, refresh, etc.
