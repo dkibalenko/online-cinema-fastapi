@@ -12,7 +12,8 @@ from auth.schemas import (
     UserLoginRequestSchema,
     UserLoginResponseSchema,
     TokenRefreshRequestSchema,
-    TokenRefreshResponseSchema
+    TokenRefreshResponseSchema,
+    ResendActivationRequestSchema
 )
 from auth.interfaces import JWTAuthManagerInterface, EmailSenderInterface
 from auth.repository import UserRepository
@@ -176,6 +177,48 @@ class AuthService:
 
         return MessageResponseSchema(
             message="Account activated successfully."
+        )
+
+    async def resend_activation_token(
+        self,
+        email_data: ResendActivationRequestSchema
+    ) -> MessageResponseSchema:
+        log.info(f"Resend activation attempt for {email_data.email}")
+
+        user = await self.users.get_by_email(email_data.email)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found."
+            )
+
+        if user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User account is already active."
+            )
+        
+        # Delete old token if exists
+        old_token = await self.users.get_activation_token_by_user_id(user.id)
+        if old_token:
+            await self.users.delete_activation_token(old_token)
+
+        # Create new token
+        new_token = ActivationToken(user_id=user.id)
+        self.users.add(new_token)
+        await self.users.commit()
+
+        # Send email
+        await self.email_sender.send_activation_email(
+            email=user.email,
+            token=new_token.token
+        )
+
+        log.info(f"Activation token resent for {user.email}")
+
+        return MessageResponseSchema(
+            message="A new activation link has been sent to your email."
         )
 
     async def login_user(
