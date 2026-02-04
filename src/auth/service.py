@@ -183,6 +183,19 @@ class AuthService:
         login_data: UserLoginRequestSchema,
         settings: BaseAppSettings,
     ) -> UserLoginResponseSchema:
+        """
+        Login a user and generate an access token and refresh token.
+
+        Args:
+            login_data (UserLoginRequestSchema): The login data containing the user's email and password.
+            settings (BaseAppSettings): The application settings.
+
+        Returns:
+            UserLoginResponseSchema: A response containing the access token and refresh token.
+
+        Raises:
+            HTTPException: If the user credentials are invalid, or if the user account is not activated.
+        """
         log.info(f"Login attempt for {login_data.email}")
 
         user = await self.users.get_by_email(login_data.email)
@@ -232,6 +245,19 @@ class AuthService:
         self,
         token_data: TokenRefreshRequestSchema
     ) -> TokenRefreshResponseSchema:
+        """
+        Refreshes an access token given a valid refresh token.
+
+        Args:
+            token_data (TokenRefreshRequestSchema): The refresh token data containing the refresh token.
+
+        Returns:
+            TokenRefreshResponseSchema: A response containing the new access token and optionally the new refresh token.
+
+        Raises:
+            HTTPException: If the refresh token is invalid, expired, or doesn't belong to the user.
+            HTTPException: If the user is not found.
+        """
         log.info("Refreshing access token...")
 
         # 1. Decode refresh token
@@ -290,6 +316,8 @@ class AuthService:
 
         # 7. Generate new access token
         access_token = self.jwt.create_access_token({"user_id": user_id})
+
+        log.info("Access token refreshed successfully")
 
         return  TokenRefreshResponseSchema(
             access_token=access_token,
