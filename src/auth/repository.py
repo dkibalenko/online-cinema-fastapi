@@ -110,4 +110,36 @@ class UserRepository:
     async def delete_refresh_token(self, token: RefreshToken) -> None:
         await self.db.delete(token)
 
-    # later: methods for tokens, activation, refresh, etc.
+    async def get_password_reset_token(
+        self,
+        token: str
+    ) -> PasswordResetToken | None:
+        """
+        Retrieves the password reset token record associated with
+        the given token.
+        """
+        stmt = select(PasswordResetToken).where(
+            PasswordResetToken.token == token
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_password_reset_token_by_user_id(
+        self,
+        user_id: int
+    ) -> PasswordResetToken | None:
+        """
+        Retrieves the password reset token record associated with
+        the given user ID.
+        """
+        stmt = select(PasswordResetToken).where(
+            PasswordResetToken.user_id == user_id
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def delete_password_reset_token(
+        self,
+        token: PasswordResetToken
+    ) -> None:
+        await self.db.delete(token)
