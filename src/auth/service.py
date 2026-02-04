@@ -187,11 +187,11 @@ class AuthService:
         Login a user and generate an access token and refresh token.
 
         Args:
-            login_data (UserLoginRequestSchema): The login data containing the user's email and password.
-            settings (BaseAppSettings): The application settings.
+            login_data (`UserLoginRequestSchema`): The login data containing the user's email and password.
+            settings (`BaseAppSettings`): The application settings.
 
         Returns:
-            UserLoginResponseSchema: A response containing the access token and refresh token.
+            `UserLoginResponseSchema`: A response containing the access token and refresh token.
 
         Raises:
             HTTPException: If the user credentials are invalid, or if the user account is not activated.
@@ -249,10 +249,10 @@ class AuthService:
         Refreshes an access token given a valid refresh token.
 
         Args:
-            token_data (TokenRefreshRequestSchema): The refresh token data containing the refresh token.
+            token_data (`TokenRefreshRequestSchema`): The refresh token data containing the refresh token.
 
         Returns:
-            TokenRefreshResponseSchema: A response containing the new access token and optionally the new refresh token.
+            `TokenRefreshResponseSchema`: A response containing the new access token and optionally the new refresh token.
 
         Raises:
             HTTPException: If the refresh token is invalid, expired, or doesn't belong to the user.
@@ -323,3 +323,60 @@ class AuthService:
             access_token=access_token,
             # refresh_token=new_refresh_jwt,
         )
+
+    async def logout_user(
+        self,
+        token_data: TokenRefreshRequestSchema
+    ) -> MessageResponseSchema:
+        """
+        Logs out a user based on the provided refresh token.
+
+        Args:
+            token_data (`TokenRefreshRequestSchema`): The refresh token data containing the refresh token.
+
+        Returns:
+            `MessageResponseSchema`: A response containing a success message.
+
+        Raises:
+            HTTPException: If the refresh token is invalid, expired, or doesn't belong to the user.
+            HTTPException: If the user is not found.
+        """
+        log.info("Logout attempt...")
+
+        # 1. Decode refresh token
+        try:
+            decoded = self.jwt.decode_refresh_token(
+                token_data.refresh_token
+            )
+            user_id = decoded.get("user_id")
+        except BaseSecurityError as error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(error),
+            )
+
+        # 2. Find refresh token in DB
+        refresh_token_record = await self.users.get_refresh_token_record(
+            token=token_data.refresh_token
+        )
+
+        if not refresh_token_record:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token not found.",
+            )
+
+        # 3. Ownership check
+        if refresh_token_record.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token does not belong to this user.",
+            )
+
+        # 4. Delete refresh token
+        await self.users.delete_refresh_token(refresh_token_record)
+        await self.users.commit()
+
+        log.info(f"User {user_id} logged out successfully")
+
+        return MessageResponseSchema(message="Logged out successfully.")
