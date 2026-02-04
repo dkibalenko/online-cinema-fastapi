@@ -42,7 +42,7 @@ class UserActivationRequestSchema(BaseModel):
 
 
 class UserLoginRequestSchema(BaseEmailPasswordSchema):
-    password: str
+    pass
 
 
 class UserLoginResponseSchema(BaseModel):
