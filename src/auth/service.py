@@ -1,10 +1,11 @@
 from datetime import datetime, timezone
+from typing import cast
 
 from exceptions import BaseSecurityError
 from fastapi import status, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 
-from auth.models import ActivationToken, RefreshToken, User
+from auth.models import ActivationToken, PasswordResetToken, RefreshToken, User
 from auth.schemas import (
     MessageResponseSchema,
     UserRegistrationRequestSchema,
@@ -13,7 +14,8 @@ from auth.schemas import (
     UserLoginResponseSchema,
     TokenRefreshRequestSchema,
     TokenRefreshResponseSchema,
-    ResendActivationRequestSchema
+    ResendActivationRequestSchema,
+    PasswordResetRequestSchema,
 )
 from auth.interfaces import JWTAuthManagerInterface, EmailSenderInterface
 from auth.repository import UserRepository
@@ -205,14 +207,19 @@ class AuthService:
             await self.users.delete_activation_token(old_token)
 
         # Create new token
-        new_token = ActivationToken(user_id=user.id)
+        new_token = ActivationToken(user_id=cast(int, user.id))
         self.users.add(new_token)
         await self.users.commit()
 
         # Send email
+        activation_link = (
+            f"http://127.0.0.1:8000/api/v1/cinema/auth/activate?"
+            f"token={new_token.token}"
+        )
+
         await self.email_sender.send_activation_email(
             email=user.email,
-            token=new_token.token
+            activation_link=activation_link
         )
 
         log.info(f"Activation token resent for {user.email}")
@@ -423,3 +430,56 @@ class AuthService:
         log.info(f"User {user_id} logged out successfully")
 
         return MessageResponseSchema(message="Logged out successfully.")
+
+    async def request_password_reset(
+        self,
+        data: PasswordResetRequestSchema
+    ) -> MessageResponseSchema:
+        log.info(f"Password reset request for {data.email}")
+
+        user = await self.users.get_by_email(data.email)
+
+        if not user or not user.is_active:
+            # Do NOT reveal whether the email exists
+            return MessageResponseSchema(
+                message=(
+                    "If this email is registered, a reset link has been sent."
+                )
+            )
+
+        old_token = await self.users.get_password_reset_token_by_user_id(
+            user.id
+        )
+        try:
+            async with self.users.db.begin():
+                # Delete old token
+                if old_token:
+                    await self.users.delete_password_reset_token(old_token)
+
+                # Create new token
+                reset_token = PasswordResetToken(user_id=cast(int, user.id))
+                self.users.add(reset_token)
+
+            reset_password_link = (
+                f"http://127.0.0.1:8000/api/v1/cinema/auth/reset-password/"
+                f"complete?token={reset_token.token}"
+            )
+        except SQLAlchemyError as error:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(error),
+            )
+
+        # Send email
+        await self.email_sender.send_password_reset_email(
+            email=user.email,
+            reset_link=reset_password_link
+        )
+
+        log.info(f"Password reset link sent to {user.email}")
+
+        return MessageResponseSchema(
+            message=(
+                "If this email is registered, a reset link has been sent."
+            )
+        )
