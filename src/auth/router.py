@@ -14,6 +14,7 @@ from auth.schemas import (
     UserLoginResponseSchema,
     TokenRefreshRequestSchema,
     TokenRefreshResponseSchema,
+    ResendActivationRequestSchema,
 )
 
 
@@ -85,3 +86,11 @@ async def logout_user(
     auth: Annotated[AuthService, Depends(get_auth_service)]
 ) -> MessageResponseSchema:
     return await auth.logout_user(token_data)
+
+
+@router.post("/activate/resend/", response_model=MessageResponseSchema)
+async def resend_activation(
+    data: ResendActivationRequestSchema,
+    auth: Annotated[AuthService, Depends(get_auth_service)]
+) -> MessageResponseSchema:
+    return await auth.resend_activation_token(data)
