@@ -44,8 +44,7 @@ async def activate_account(
     activatation_data: UserActivationRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)],
 ) -> MessageResponseSchema:
-    message = await auth.activate_account(activatation_data)
-    return message
+    return await auth.activate_account(activatation_data)
 
 
 @router.post(
@@ -59,10 +58,7 @@ async def login_user(
     auth: Annotated[AuthService, Depends(get_auth_service)],
     settings: Annotated[BaseAppSettings, Depends(get_settings)]
 ) -> UserLoginResponseSchema:
-    login_response = await auth.login_user(
-        login_data, settings
-    )
-    return login_response
+    return await auth.login_user(login_data, settings)
 
 
 @router.post(
@@ -75,5 +71,17 @@ async def refresh_access_token(
     token_data: TokenRefreshRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)]
 ) -> TokenRefreshResponseSchema:
-    response = await auth.refresh_access_token(token_data)
-    return response
+    return await auth.refresh_access_token(token_data)
+
+
+@router.post(
+    "/logout/",
+    response_model=MessageResponseSchema,
+    summary="Logout user",
+    status_code=status.HTTP_200_OK,
+)
+async def logout_user(
+    token_data: TokenRefreshRequestSchema,
+    auth: Annotated[AuthService, Depends(get_auth_service)]
+) -> MessageResponseSchema:
+    return await auth.logout_user(token_data)
