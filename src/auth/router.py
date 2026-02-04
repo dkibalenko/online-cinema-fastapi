@@ -15,6 +15,7 @@ from auth.schemas import (
     TokenRefreshRequestSchema,
     TokenRefreshResponseSchema,
     ResendActivationRequestSchema,
+    PasswordResetRequestSchema,
 )
 
 
@@ -88,9 +89,27 @@ async def logout_user(
     return await auth.logout_user(token_data)
 
 
-@router.post("/activate/resend/", response_model=MessageResponseSchema)
+@router.post(
+    "/activate/resend/",
+    response_model=MessageResponseSchema,
+    summary="Resend Activation Token",
+    status_code=status.HTTP_200_OK
+)
 async def resend_activation(
     data: ResendActivationRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)]
 ) -> MessageResponseSchema:
     return await auth.resend_activation_token(data)
+
+
+@router.post(
+    "/password-reset/request/",
+    response_model=MessageResponseSchema,
+    summary="Request Password Reset Token",
+    status_code=status.HTTP_200_OK
+)
+async def request_password_reset_token(
+    data: PasswordResetRequestSchema,
+    auth: Annotated[AuthService, Depends(get_auth_service)]
+) -> MessageResponseSchema:
+    return await auth.request_password_reset(data)
