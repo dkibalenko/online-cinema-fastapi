@@ -41,6 +41,10 @@ class UserActivationRequestSchema(BaseModel):
     token: str = Field(..., description="Activation token")
 
 
+class ResendActivationRequestSchema(BaseModel):
+    email: EmailStr
+
+
 class UserLoginRequestSchema(BaseEmailPasswordSchema):
     pass
 

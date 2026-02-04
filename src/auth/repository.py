@@ -82,6 +82,19 @@ class UserRepository:
         # After joinedload() use .unique() that deduplicates ORM objects
         return result.unique().scalar_one_or_none()
 
+    async def get_activation_token_by_user_id(
+        self,
+        user_id: int
+    ) -> ActivationToken | None:
+        """
+        Retrieves the activation token record associated with the given user ID.
+        """
+        stmt = select(ActivationToken).where(
+            ActivationToken.user_id == user_id
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_refresh_token_record(
         self, 
         token: str
