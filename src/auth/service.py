@@ -1,19 +1,23 @@
 from datetime import datetime, timezone
-from typing import cast
 
+from exceptions import BaseSecurityError
 from fastapi import status, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 
-from auth.models import ActivationToken, User
+from auth.models import ActivationToken, RefreshToken, User
 from auth.schemas import (
     MessageResponseSchema,
     UserRegistrationRequestSchema,
     UserActivationRequestSchema,
     UserLoginRequestSchema,
+    UserLoginResponseSchema,
+    TokenRefreshRequestSchema,
+    TokenRefreshResponseSchema
 )
 from auth.interfaces import JWTAuthManagerInterface, EmailSenderInterface
 from auth.repository import UserRepository
 from logger_config import get_logger
+from config import BaseAppSettings
 
 log = get_logger()
 
@@ -172,4 +176,122 @@ class AuthService:
 
         return MessageResponseSchema(
             message="Account activated successfully."
+        )
+
+    async def login_user(
+        self,
+        login_data: UserLoginRequestSchema,
+        settings: BaseAppSettings,
+    ) -> UserLoginResponseSchema:
+        log.info(f"Login attempt for {login_data.email}")
+
+        user = await self.users.get_by_email(login_data.email)
+
+        # 1. Validate user credentials
+        if not user or not user.verify_password(login_data.password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password.",
+            )
+
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is not activated.",
+            )
+
+        # 2. Generate refresh token (JWT)
+        jwt_refresh_token = self.jwt.create_refresh_token({"user_id": user.id})
+
+        # 3. Store refresh token in DB
+        try:
+            async with self.users.db.begin():
+                refresh_token = RefreshToken.create(
+                    user_id=user.id,
+                    days_valid=settings.LOGIN_TIME_DAYS,
+                    token=jwt_refresh_token
+                )
+                self.users.add(refresh_token)
+        except SQLAlchemyError:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while processing the login request.",
+            )
+
+        # 4. Generate access token
+        jwt_access_token = self.jwt.create_access_token({"user_id": user.id})
+
+        log.info(f"User {user.email} logged in successfully")
+
+        return UserLoginResponseSchema(
+            access_token=jwt_access_token,
+            refresh_token=jwt_refresh_token
+        )
+
+    async def refresh_access_token(
+        self,
+        token_data: TokenRefreshRequestSchema
+    ) -> TokenRefreshResponseSchema:
+        log.info("Refreshing access token...")
+
+        # 1. Decode refresh token
+        try:
+            decoded = self.jwt.decode_refresh_token(
+                token_data.refresh_token
+            )
+            user_id = decoded.get("user_id")
+        except BaseSecurityError as error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(error),
+            )
+
+        # 2. Validate refresh token exists in DB
+        refresh_token_record = await self.users.get_refresh_token_record(
+            token=token_data.refresh_token
+        )
+
+        if not refresh_token_record:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token not found.",
+            )
+
+        # 3. Validate expiration
+        now_utc = datetime.now(timezone.utc)
+
+        if refresh_token_record.expires_at < now_utc:
+            await self.users.delete_refresh_token(refresh_token_record)
+            await self.users.commit()
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token expired.",
+            )
+
+        # 4. Validate user
+        user = await self.users.get_by_id(user_id=user_id)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found.",
+            )
+
+        # 5. Validate refresh token belongs to this user(ownership check)
+        if refresh_token_record.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token does not belong to this user.",
+            )
+        
+        # 6. Rotate refresh token
+        # new_refresh_jwt = self.jwt.create_refresh_token({"user_id": user_id})
+        # refresh_token_record.token = new_refresh_jwt
+
+        # 7. Generate new access token
+        access_token = self.jwt.create_access_token({"user_id": user_id})
+
+        return  TokenRefreshResponseSchema(
+            access_token=access_token,
+            # refresh_token=new_refresh_jwt,
         )
