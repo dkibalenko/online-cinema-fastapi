@@ -1,4 +1,3 @@
-# src/main.py
 from fastapi import FastAPI
 from slowapi.middleware import SlowAPIMiddleware
 
