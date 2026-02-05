@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from exceptions import BaseSecurityError
 from fastapi import status, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 
+from exceptions import BaseSecurityError
 from auth.models import ActivationToken, PasswordResetToken, RefreshToken, User
 from auth.schemas import (
     MessageResponseSchema,
@@ -16,6 +16,7 @@ from auth.schemas import (
     TokenRefreshResponseSchema,
     ResendActivationRequestSchema,
     PasswordResetRequestSchema,
+    PasswordResetCompleteRequestSchema
 )
 from auth.interfaces import JWTAuthManagerInterface, EmailSenderInterface
 from auth.repository import UserRepository
@@ -435,6 +436,18 @@ class AuthService:
         self,
         data: PasswordResetRequestSchema
     ) -> MessageResponseSchema:
+        """
+        Requests a password reset for a user with the given email.
+
+        Args:
+            data (`PasswordResetRequestSchema`): The password reset request data containing the user's email.
+
+        Returns:
+            `MessageResponseSchema`: A response containing a success message.
+
+        Raises:
+            HTTPException: If an error occurs during password reset request.
+        """
         log.info(f"Password reset request for {data.email}")
 
         user = await self.users.get_by_email(data.email)
@@ -459,15 +472,15 @@ class AuthService:
                 # Create new token
                 reset_token = PasswordResetToken(user_id=cast(int, user.id))
                 self.users.add(reset_token)
-
-            reset_password_link = (
-                f"http://127.0.0.1:8000/api/v1/cinema/auth/reset-password/"
-                f"complete?token={reset_token.token}"
-            )
         except SQLAlchemyError as error:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=str(error),
+            )
+
+        reset_password_link = (
+                f"http://127.0.0.1:8000/api/v1/cinema/auth/reset-password/"
+                f"complete?token={reset_token.token}"
             )
 
         # Send email
@@ -482,4 +495,78 @@ class AuthService:
             message=(
                 "If this email is registered, a reset link has been sent."
             )
+        )
+
+    async def reset_password(
+        self,
+        data: PasswordResetCompleteRequestSchema
+    ) -> MessageResponseSchema:
+        """
+        Resets the password for a user with the given reset token.
+
+        Args:
+            data (`PasswordResetCompleteRequestSchema`): The password reset complete request data containing the reset token and new password.
+
+        Returns:
+            `MessageResponseSchema`: A response containing a success message.
+
+        Raises:
+            HTTPException: If the reset token is invalid, expired, or doesn't belong to the user.
+            HTTPException: If the user is not found.
+            HTTPException: If the password update fails due to a security error.
+        """
+        log.info("Password reset attempt...")
+
+        # 1. Validate token
+        # Look up the token directly in the DB
+        token_record = await self.users.get_password_reset_token(data.token)
+
+        if not token_record:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired reset token."
+            )
+
+        # 2. Validate token expiration
+        if token_record.expires_at < datetime.now(timezone.utc):
+            async with self.users.db.begin():
+                await self.users.delete_password_reset_token(token_record)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Reset token expired."
+            )
+
+        # 3. Validate user
+        # Load the user from the token
+        user = await self.users.get_by_id(token_record.user_id)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found."
+            )
+
+        # 4. Update password + delete token
+        try:
+            async with self.users.db.begin():
+                user.password(data.password)
+                await self.users.delete_password_reset_token(token_record)
+        except BaseSecurityError as error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(error),
+            )
+
+        # 6. Send confirmation email
+        login_link = "http://127.0.0.1:8000/api/v1/cinema/auth/login"
+
+        await self.email_sender.send_password_reset_complete_email(
+            email=user.email,
+            login_link=login_link
+        )
+
+        log.info("Password reset successful")
+
+        return MessageResponseSchema(
+            message="Password has been reset successfully."
         )
