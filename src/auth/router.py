@@ -16,6 +16,7 @@ from auth.schemas import (
     TokenRefreshResponseSchema,
     ResendActivationRequestSchema,
     PasswordResetRequestSchema,
+    PasswordResetCompleteRequestSchema
 )
 
 
@@ -113,3 +114,16 @@ async def request_password_reset_token(
     auth: Annotated[AuthService, Depends(get_auth_service)]
 ) -> MessageResponseSchema:
     return await auth.request_password_reset(data)
+
+
+@router.post(
+    "/password-reset/complete/",
+    response_model=MessageResponseSchema,
+    summary="Complete Password Reset",
+    status_code=status.HTTP_200_OK
+)
+async def complete_password_reset(
+    data: PasswordResetCompleteRequestSchema,
+    auth: Annotated[AuthService, Depends(get_auth_service)]
+) -> MessageResponseSchema:
+    return await auth.reset_password(data)
