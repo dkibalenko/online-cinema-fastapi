@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
+from rate_limiting import limiter
 from config import BaseAppSettings, get_settings
 from auth.dependencies import get_auth_service
 from auth.service import AuthService
@@ -31,6 +32,7 @@ router = APIRouter()
     summary="User Registration",
     status_code=status.HTTP_201_CREATED
 )
+@limiter.limit("3/minute")
 async def register_user(
     user_data: UserRegistrationRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)],
@@ -54,11 +56,26 @@ async def activate_account(
 
 
 @router.post(
+    "/activate/resend/",
+    response_model=MessageResponseSchema,
+    summary="Resend Activation Token",
+    status_code=status.HTTP_200_OK
+)
+@limiter.limit("3/minute")
+async def resend_activation(
+    data: ResendActivationRequestSchema,
+    auth: Annotated[AuthService, Depends(get_auth_service)]
+) -> MessageResponseSchema:
+    return await auth.resend_activation_token(data)
+
+
+@router.post(
     "/login/",
     response_model=UserLoginResponseSchema,
     summary="User login",
     status_code=status.HTTP_200_OK
 )
+@limiter.limit("5/minute")
 async def login_user(
     login_data: UserLoginRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)],
@@ -73,6 +90,7 @@ async def login_user(
     summary="Refresh Access Token",
     status_code=status.HTTP_200_OK,
 )
+@limiter.limit("20/minute")
 async def refresh_access_token(
     token_data: TokenRefreshRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)]
@@ -86,6 +104,7 @@ async def refresh_access_token(
     summary="Logout user",
     status_code=status.HTTP_200_OK,
 )
+@limiter.limit("20/minute")
 async def logout_user(
     token_data: TokenRefreshRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)]
@@ -94,24 +113,12 @@ async def logout_user(
 
 
 @router.post(
-    "/activate/resend/",
-    response_model=MessageResponseSchema,
-    summary="Resend Activation Token",
-    status_code=status.HTTP_200_OK
-)
-async def resend_activation(
-    data: ResendActivationRequestSchema,
-    auth: Annotated[AuthService, Depends(get_auth_service)]
-) -> MessageResponseSchema:
-    return await auth.resend_activation_token(data)
-
-
-@router.post(
     "/password-reset/request/",
     response_model=MessageResponseSchema,
     summary="Request Password Reset Token",
     status_code=status.HTTP_200_OK
 )
+@limiter.limit("3/minute")
 async def request_password_reset_token(
     data: PasswordResetRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)]

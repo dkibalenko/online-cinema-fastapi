@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from slowapi.middleware import SlowAPIMiddleware
+from slowapi.errors import RateLimitExceeded
+from fastapi.responses import JSONResponse
 
 from pagination import setup_pagination
 from logger_config import setup_logging
@@ -41,6 +43,13 @@ def create_app() -> FastAPI:
     # Middleware
     app.state.limiter = limiter
     app.add_middleware(SlowAPIMiddleware)
+
+    @app.exception_handler(RateLimitExceeded)
+    async def rate_limit_handler(request, exc):
+        return JSONResponse(
+            status_code=429,
+            content={"message": "Too many requests. Please try again later."}
+        )
 
     return app
 
