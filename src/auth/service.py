@@ -16,7 +16,8 @@ from auth.schemas import (
     TokenRefreshResponseSchema,
     ResendActivationRequestSchema,
     PasswordResetRequestSchema,
-    PasswordResetCompleteRequestSchema
+    PasswordResetCompleteRequestSchema,
+    ChangePasswordSchema,
 )
 from auth.interfaces import JWTAuthManagerInterface, EmailSenderInterface
 from auth.repository import UserRepository
@@ -37,7 +38,6 @@ class AuthService:
         self.jwt = jwt
         self.email_sender = email_sender
 
-    # registration, login, refresh, logout will go here
     async def register_user(
         self,
         user_data: UserRegistrationRequestSchema
@@ -202,15 +202,19 @@ class AuthService:
                 detail="User account is already active."
             )
         
-        # Delete old token if exists
+        # Delete old token if exists + create new
         old_token = await self.users.get_activation_token_by_user_id(user.id)
-        if old_token:
-            await self.users.delete_activation_token(old_token)
-
-        # Create new token
-        new_token = ActivationToken(user_id=cast(int, user.id))
-        self.users.add(new_token)
-        await self.users.commit()
+        try:
+            async with self.users.db.begin():
+                if old_token:
+                    await self.users.delete_activation_token(old_token)
+                new_token = ActivationToken(user_id=cast(int, user.id))
+                self.users.add(new_token)
+        except SQLAlchemyError:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred during activation token creation."
+            )
 
         # Send email
         activation_link = (
@@ -551,11 +555,11 @@ class AuthService:
             async with self.users.db.begin():
                 user.password(data.password)
                 await self.users.delete_password_reset_token(token_record)
-        except BaseSecurityError as error:
+        except SQLAlchemyError:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(error),
-            )
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while resetting the password."
+        )
 
         # 6. Send confirmation email
         login_link = "http://127.0.0.1:8000/api/v1/cinema/auth/login"
@@ -570,3 +574,43 @@ class AuthService:
         return MessageResponseSchema(
             message="Password has been reset successfully."
         )
+
+    async def change_password(
+        self,
+        user: User,
+        data: ChangePasswordSchema
+    ) -> MessageResponseSchema:
+        """
+        Changes the password for a user.
+
+        Args:
+            user (`User`): The user to change the password for.
+            data (`ChangePasswordSchema`): The new password and old password.
+
+        Returns:
+            `MessageResponseSchema`: A response containing a success message.
+
+        Raises:
+            HTTPException: If the old password is incorrect.
+            HTTPException: If an error occurs while changing the password.
+        """
+        log.info("Change password attempt...")
+
+        if not user.verify_password(data.old_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Old password is incorrect."
+            )
+        try:
+            user.password(data.new_password)
+            await self.users.commit()
+        except SQLAlchemyError as error:
+            await self.users.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(error),
+            )
+
+        log.info("Password changed successfully")
+
+        return MessageResponseSchema(message="Password changed successfully.")
