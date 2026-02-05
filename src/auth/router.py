@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, status
 from config import BaseAppSettings, get_settings
 from auth.dependencies import get_auth_service
 from auth.service import AuthService
+from auth.models import User
 from auth.schemas import (
     MessageResponseSchema,
     UserActivationRequestSchema,
@@ -16,7 +17,8 @@ from auth.schemas import (
     TokenRefreshResponseSchema,
     ResendActivationRequestSchema,
     PasswordResetRequestSchema,
-    PasswordResetCompleteRequestSchema
+    PasswordResetCompleteRequestSchema,
+    ChangePasswordSchema
 )
 
 
@@ -37,7 +39,7 @@ async def register_user(
     return user
 
 
-@router.post(
+@router.post(  # for a clickable activation link we need GET /activate?token=...
     "/activate/",
     response_model=MessageResponseSchema,
     summary="User Activation",
@@ -47,6 +49,7 @@ async def activate_account(
     activatation_data: UserActivationRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)],
 ) -> MessageResponseSchema:
+    # user must POST email + token manually
     return await auth.activate_account(activatation_data)
 
 
@@ -127,3 +130,17 @@ async def complete_password_reset(
     auth: Annotated[AuthService, Depends(get_auth_service)]
 ) -> MessageResponseSchema:
     return await auth.reset_password(data)
+
+
+@router.post(
+    "/password-change/",
+    response_model=MessageResponseSchema,
+    summary="Change Password",
+    status_code=status.HTTP_200_OK
+)
+async def change_password(
+    user: User,
+    data: ChangePasswordSchema,
+    auth: Annotated[AuthService, Depends(get_auth_service)]
+) -> MessageResponseSchema:
+    return await auth.change_password(user, data)
