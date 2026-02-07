@@ -273,14 +273,15 @@ class AuthService:
 
         # 3. Store refresh token in DB
         try:
-            async with self.users.db.begin():
-                refresh_token = RefreshToken.create(
-                    user_id=user.id,
-                    days_valid=settings.LOGIN_TIME_DAYS,
-                    token=jwt_refresh_token
-                )
-                self.users.add(refresh_token)
+            refresh_token = RefreshToken.create(
+                user_id=user.id,
+                days_valid=settings.LOGIN_TIME_DAYS,
+                token=jwt_refresh_token
+            )
+            self.users.add(refresh_token)
+            await self.users.commit()
         except SQLAlchemyError:
+            await self.users.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred while processing the login request.",
@@ -468,15 +469,16 @@ class AuthService:
             user.id
         )
         try:
-            async with self.users.db.begin():
-                # Delete old token
-                if old_token:
-                    await self.users.delete_password_reset_token(old_token)
+            # Delete old token
+            if old_token:
+                await self.users.delete_password_reset_token(old_token)
 
-                # Create new token
-                reset_token = PasswordResetToken(user_id=cast(int, user.id))
-                self.users.add(reset_token)
+            # Create new token
+            reset_token = PasswordResetToken(user_id=cast(int, user.id))
+            self.users.add(reset_token)
+            await self.users.commit()
         except SQLAlchemyError as error:
+            await self.users.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=str(error),
@@ -533,8 +535,8 @@ class AuthService:
 
         # 2. Validate token expiration
         if token_record.expires_at < datetime.now(timezone.utc):
-            async with self.users.db.begin():
-                await self.users.delete_password_reset_token(token_record)
+            await self.users.delete_password_reset_token(token_record)
+            await self.users.commit()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Reset token expired."
@@ -552,10 +554,11 @@ class AuthService:
 
         # 4. Update password + delete token
         try:
-            async with self.users.db.begin():
-                user.password(data.password)
-                await self.users.delete_password_reset_token(token_record)
+            user.password = data.password
+            await self.users.delete_password_reset_token(token_record)
+            await self.users.commit()
         except SQLAlchemyError:
+            await self.users.rollback()
             raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
@@ -602,7 +605,7 @@ class AuthService:
                 detail="Old password is incorrect."
             )
         try:
-            user.password(data.new_password)
+            user.password = data.new_password
             await self.users.commit()
         except SQLAlchemyError as error:
             await self.users.rollback()
