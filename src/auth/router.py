@@ -1,10 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Request
 
 from rate_limiting import limiter
 from config import BaseAppSettings, get_settings
-from auth.dependencies import get_auth_service
+from auth.dependencies import get_auth_service, get_current_user
 from auth.service import AuthService
 from auth.models import User
 from auth.schemas import (
@@ -34,6 +34,7 @@ router = APIRouter()
 )
 @limiter.limit("3/minute")
 async def register_user(
+    request: Request,
     user_data: UserRegistrationRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)],
 ) -> UserRegistrationResponseSchema:
@@ -63,6 +64,7 @@ async def activate_account(
 )
 @limiter.limit("3/minute")
 async def resend_activation(
+    request: Request,
     data: ResendActivationRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)]
 ) -> MessageResponseSchema:
@@ -77,6 +79,7 @@ async def resend_activation(
 )
 @limiter.limit("5/minute")
 async def login_user(
+    request: Request,
     login_data: UserLoginRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)],
     settings: Annotated[BaseAppSettings, Depends(get_settings)]
@@ -92,6 +95,7 @@ async def login_user(
 )
 @limiter.limit("20/minute")
 async def refresh_access_token(
+    request: Request,
     token_data: TokenRefreshRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)]
 ) -> TokenRefreshResponseSchema:
@@ -106,6 +110,7 @@ async def refresh_access_token(
 )
 @limiter.limit("20/minute")
 async def logout_user(
+    request: Request,
     token_data: TokenRefreshRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)]
 ) -> MessageResponseSchema:
@@ -120,6 +125,7 @@ async def logout_user(
 )
 @limiter.limit("3/minute")
 async def request_password_reset_token(
+    request: Request,
     data: PasswordResetRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)]
 ) -> MessageResponseSchema:
@@ -146,7 +152,7 @@ async def complete_password_reset(
     status_code=status.HTTP_200_OK
 )
 async def change_password(
-    user: User,
+    user: Annotated[User, Depends(get_current_user)],
     data: ChangePasswordSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)]
 ) -> MessageResponseSchema:
