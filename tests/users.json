@@ -1,0 +1,22 @@
+[
+  {
+    "email": "validuser@example.com",
+    "password": "StrongPass123!"
+  },
+  {
+    "email": "duplicate@example.com",
+    "password": "AnotherPass123!"
+  },
+  {
+    "email": "weakpass@example.com",
+    "password": "123"
+  },
+  {
+    "email": "invalidemail",
+    "password": "StrongPass123!"
+  },
+  {
+    "email": "validuser2@example.com",
+    "password": "AnotherStrongPass!456"
+  }
+]
