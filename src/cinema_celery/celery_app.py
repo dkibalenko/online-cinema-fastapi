@@ -21,7 +21,7 @@ app = Celery(
 app.conf.beat_schedule = {
     "cleanup-expired-tokens-every-hour": {
         "task": "cinema_celery.tasks.cleanup_tasks.cleanup_expired_tokens",
-        # "schedule": crontab(day_of_week="sunday", hour=0, minute=0),
-        "schedule": 60,
+        "schedule": crontab(day_of_week="sunday", hour=0, minute=0),
+        # "schedule": 60,
     },
 }
