@@ -56,6 +56,9 @@ class Settings(BaseAppSettings):
     POSTGRES_DB_PORT: int = 5432
     POSTGRES_DB: str = "cinema_db"
 
+    CELERY_BROKER_URL: str
+    CELERY_RESULT_BACKEND: str
+
     JWT_SECRET_KEY_ACCESS: SecretStr
     JWT_SECRET_KEY_REFRESH: SecretStr
     JWT_SIGNING_ALGORITHM: str

@@ -11,7 +11,7 @@ def setup_logging() -> None:
     """
 
     try:
-        config_file = Path("logger_config/config.json")
+        config_file = Path(__file__).parent / "config.json"
         if not config_file.exists():
             raise FileNotFoundError(f"Path {config_file} does not exist")
 
