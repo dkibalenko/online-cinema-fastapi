@@ -99,7 +99,7 @@ class UserRepository:
         return result.scalar_one_or_none()
 
     async def get_refresh_token_record(
-        self, 
+        self,
         token: str
     ) -> RefreshToken | None:
         """
@@ -109,7 +109,7 @@ class UserRepository:
         result = await self.db.execute(stmt)
 
         return result.scalar_one_or_none()
-    
+
     async def delete_refresh_token(self, token: RefreshToken) -> None:
         await self.db.delete(token)
 

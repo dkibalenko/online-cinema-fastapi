@@ -23,6 +23,12 @@ from auth.interfaces import JWTAuthManagerInterface, EmailSenderInterface
 from auth.repository import UserRepository
 from logger_config import get_logger
 from config import BaseAppSettings
+from cinema_celery.tasks.email_tasks import (
+    send_activation_email,
+    send_activation_complete_email,
+    send_password_reset_email,
+    send_password_reset_complete_email
+)
 
 log = get_logger()
 
@@ -106,10 +112,9 @@ class AuthService:
             f"http://127.0.0.1:8000/api/v1/cinema/auth/activate?"
             f"token={token.token}"
         )
-        await self.email_sender.send_activation_email(
-            email=user.email,
-            activation_link=activation_link
-        )
+
+        # enqueue celery task
+        send_activation_email.delay(user.email, activation_link)
 
         log.info(f"Registration successful for {user_data.email}")
 
@@ -171,10 +176,8 @@ class AuthService:
         # 5. Send confirmation email
         login_link = "http://127.0.0.1:8000/api/v1/cinema/auth/login"
 
-        await self.email_sender.send_activation_complete_email(
-            email=str(user.email),
-            login_link=login_link
-        )
+        # 6. enqueue celery task
+        send_activation_complete_email.delay(str(user.email), login_link)
 
         log.info(f"User {user.email} activated successfully")
 
@@ -222,10 +225,8 @@ class AuthService:
             f"token={new_token.token}"
         )
 
-        await self.email_sender.send_activation_email(
-            email=user.email,
-            activation_link=activation_link
-        )
+        # enqueue celery task
+        send_activation_email.delay(user.email, activation_link)
 
         log.info(f"Activation token resent for {user.email}")
 
@@ -489,11 +490,8 @@ class AuthService:
                 f"complete?token={reset_token.token}"
             )
 
-        # Send email
-        await self.email_sender.send_password_reset_email(
-            email=user.email,
-            reset_link=reset_password_link
-        )
+        # enqueue password reset email
+        send_password_reset_email.delay(user.email, reset_password_link)
 
         log.info(f"Password reset link sent to {user.email}")
 
@@ -567,10 +565,8 @@ class AuthService:
         # 6. Send confirmation email
         login_link = "http://127.0.0.1:8000/api/v1/cinema/auth/login"
 
-        await self.email_sender.send_password_reset_complete_email(
-            email=user.email,
-            login_link=login_link
-        )
+        # enqueue password reset email
+        send_password_reset_complete_email.delay(user.email, login_link)
 
         log.info("Password reset successful")
 
