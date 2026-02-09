@@ -51,3 +51,15 @@ RUN dos2unix /commands/*.sh
 
 # Add execute bit to commands files
 RUN chmod +x /commands/*.sh
+
+# Add a non-root user (runs the worker as your host user inside the container)
+RUN adduser --disabled-password --no-create-home cinemauser
+
+# Create logs directory and file, give ownership to cinemauser
+RUN mkdir -p /var/log/app && \
+    touch /var/log/app/app.log && \
+    chown -R cinemauser:cinemauser /var/log/app
+
+# Switch to non-root user for runtime
+USER cinemauser
+
