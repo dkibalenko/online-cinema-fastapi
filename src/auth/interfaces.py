@@ -93,33 +93,33 @@ class EmailSenderInterface(ABC):
         """
         pass
 
-    # @abstractmethod
-    # async def send_password_reset_email(
-    #     self,
-    #     email: str,
-    #     reset_link: str
-    # ) -> None:
-    #     """
-    #     Asynchronously send a password reset request email.
+    @abstractmethod
+    async def send_password_reset_email(
+        self,
+        email: str,
+        reset_link: str
+    ) -> None:
+        """
+        Asynchronously send a password reset request email.
 
-    #     Args:
-    #         email (str): The recipient's email address.
-    #         reset_link (str): The password reset link to include in the email.
-    #     """
-    #     pass
+        Args:
+            email (str): The recipient's email address.
+            reset_link (str): The password reset link to include in the email.
+        """
+        pass
 
-    # @abstractmethod
-    # async def send_password_reset_complete_email(
-    #     self,
-    #     email: str,
-    #     login_link: str
-    # ) -> None:
-    #     """
-    #     Asynchronously send an email confirming that the password
-    #     has been reset.
+    @abstractmethod
+    async def send_password_reset_complete_email(
+        self,
+        email: str,
+        login_link: str
+    ) -> None:
+        """
+        Asynchronously send an email confirming that the password
+        has been reset.
 
-    #     Args:
-    #         email (str): The recipient's email address.
-    #         login_link (str): The login link to include in the email.
-    #     """
-    #     pass
+        Args:
+            email (str): The recipient's email address.
+            login_link (str): The login link to include in the email.
+        """
+        pass

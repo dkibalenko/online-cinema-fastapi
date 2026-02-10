@@ -5,7 +5,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from auth.models import (
-    TokenBaseModel,
     User,
     UserGroup,
     ActivationToken,
@@ -22,15 +21,17 @@ class UserRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def get_by_id(self, user_id: int) -> User | None:
+        """
+        Retrieves a user by their ID.
+        """
+        stmt = select(User).where(User.id == user_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_by_email(self, email: str) -> User | None:
         """
         Retrieves a user by their email address.
-
-        Args:
-            email (str): The user's email address.
-
-        Returns:
-            User | None: The user object if found, otherwise None.
         """
         stmt = select(User).where(User.email == email)
         result = await self.db.execute(stmt)
@@ -39,9 +40,6 @@ class UserRepository:
     async def get_default_user_group(self) -> UserGroup | None:
         """
         Retrieves the default user group, i.e. the group with name USER.
-
-        Returns:
-            UserGroup | None: The default user group if found, otherwise None.
         """
         stmt = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
         result = await self.db.execute(stmt)
@@ -72,13 +70,6 @@ class UserRepository:
     ) -> ActivationToken | None:
         """
         Retrieves the activation token record with the given email and token.
-
-        Args:
-            email (str): The email address associated with the activation token.
-            token (str): The activation token.
-
-        Returns:
-            ActivationToken | None: The activation token record if found, otherwise None.
         """
         stmt = (
             select(ActivationToken)
@@ -94,4 +85,64 @@ class UserRepository:
         # After joinedload() use .unique() that deduplicates ORM objects
         return result.unique().scalar_one_or_none()
 
-    # later: methods for tokens, activation, refresh, etc.
+    async def get_activation_token_by_user_id(
+        self,
+        user_id: int
+    ) -> ActivationToken | None:
+        """
+        Retrieves the activation token record associated with the given user ID.
+        """
+        stmt = select(ActivationToken).where(
+            ActivationToken.user_id == user_id
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_refresh_token_record(
+        self,
+        token: str
+    ) -> RefreshToken | None:
+        """
+        Retrieves the refresh token record with the given token.
+        """
+        stmt = select(RefreshToken).where(RefreshToken.token == token)
+        result = await self.db.execute(stmt)
+
+        return result.scalar_one_or_none()
+
+    async def delete_refresh_token(self, token: RefreshToken) -> None:
+        await self.db.delete(token)
+
+    async def get_password_reset_token(
+        self,
+        token: str
+    ) -> PasswordResetToken | None:
+        """
+        Retrieves the password reset token record associated with
+        the given token.
+        """
+        stmt = select(PasswordResetToken).where(
+            PasswordResetToken.token == token
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_password_reset_token_by_user_id(
+        self,
+        user_id: int
+    ) -> PasswordResetToken | None:
+        """
+        Retrieves the password reset token record associated with
+        the given user ID.
+        """
+        stmt = select(PasswordResetToken).where(
+            PasswordResetToken.user_id == user_id
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def delete_password_reset_token(
+        self,
+        token: PasswordResetToken
+    ) -> None:
+        await self.db.delete(token)

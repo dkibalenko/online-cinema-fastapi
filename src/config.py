@@ -45,6 +45,8 @@ class BaseAppSettings(BaseSettings):
     PASSWORD_RESET_TEMPLATE_NAME: str = "password_reset_request.html"
     PASSWORD_RESET_COMPLETE_TEMPLATE_NAME: str = "password_reset_complete.html"
 
+    LOGIN_TIME_DAYS: int = 7
+
 
 class Settings(BaseAppSettings):
     # Optional defaults — Pydantic will override from .env if present
@@ -53,6 +55,9 @@ class Settings(BaseAppSettings):
     POSTGRES_HOST: str = "localhost"
     POSTGRES_DB_PORT: int = 5432
     POSTGRES_DB: str = "cinema_db"
+
+    CELERY_BROKER_URL: str
+    CELERY_RESULT_BACKEND: str
 
     JWT_SECRET_KEY_ACCESS: SecretStr
     JWT_SECRET_KEY_REFRESH: SecretStr

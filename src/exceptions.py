@@ -1,4 +1,3 @@
-# src/exceptions.py
 class BaseSecurityError(Exception):
     """Base class for all security-related errors."""
 

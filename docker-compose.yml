@@ -53,6 +53,7 @@ services:
       - ./src:/usr/src/fastapi
       - ./alembic.ini:/usr/src/alembic.ini:ro
       - ./alembic:/usr/src/alembic:ro
+      - ./logs:/var/log/app
     networks:
       - fastapi_network
     stdin_open: true
@@ -75,6 +76,59 @@ services:
       - PYTHONPATH=/usr/src/fastapi
     networks:
       - fastapi_network
+
+  redis:
+    image: redis:7
+    container_name: cinema-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - fastapi_network
+
+  celery-worker:
+    build: .
+    container_name: cinema-worker
+    command: celery -A cinema_celery.celery_app worker --loglevel=info -E # -E for dev. remove for prod
+    volumes:
+      - ./src:/usr/src/fastapi
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    environment:
+      - PYTHONPATH=/usr/src/fastapi
+    networks:
+      - fastapi_network
+
+  celery-beat:
+    build: .
+    container_name: cinema-beat
+    command: celery -A cinema_celery.celery_app beat --loglevel=info
+    volumes:
+      - ./src:/usr/src/fastapi
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    environment:
+      - PYTHONPATH=/usr/src/fastapi
+    networks:
+      - fastapi_network
+
+  flower:
+    build: .
+    container_name: cinema-flower
+    command: celery -A cinema_celery.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    environment:
+      - PYTHONPATH=/usr/src/fastapi
+    networks:
+        - fastapi_network
 
 volumes:
   postgres_cinema_data:

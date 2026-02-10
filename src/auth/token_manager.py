@@ -26,6 +26,7 @@ class JWTAuthManager(JWTAuthManagerInterface):
 
     def _create_token(
         self,
+        type: str,
         data: dict,
         secret_key: str,
         expires_delta: timedelta
@@ -43,7 +44,7 @@ class JWTAuthManager(JWTAuthManagerInterface):
         """
         to_encode = data.copy()
         expire = datetime.now(timezone.utc) + expires_delta
-        to_encode.update({"exp": expire})
+        to_encode.update({"type": type, "exp": expire})
         return jwt.encode(to_encode, secret_key, algorithm=self._algorithm)
 
     def create_access_token(
@@ -63,10 +64,12 @@ class JWTAuthManager(JWTAuthManagerInterface):
             str: The newly created token.
         """
         return self._create_token(
-            data,
-            self._secret_key_access,
-            expires_delta or timedelta(
-                minutes=self._ACCESS_KEY_EXPIRE_MINUTES)
+            type="access",
+            data=data,
+            secret_key=self._secret_key_access,
+            expires_delta=expires_delta or timedelta(
+                minutes=self._ACCESS_KEY_EXPIRE_MINUTES
+                )
             )
 
     def create_refresh_token(
@@ -86,9 +89,10 @@ class JWTAuthManager(JWTAuthManagerInterface):
             str: The newly created token.
         """
         return self._create_token(
-            data,
-            self._secret_key_refresh,
-            expires_delta or timedelta(
+            type="refresh",
+            data=data,
+            secret_key=self._secret_key_refresh,
+            expires_delta=expires_delta or timedelta(
                 minutes=self._REFRESH_KEY_EXPIRE_MINUTES)
             )
 

@@ -126,6 +126,13 @@ class EmailSender(EmailSenderInterface):
         email: str,
         login_link: str
     ) -> None:
+        """
+        Send an account activation completion email asynchronously.
+
+        Args:
+            email (str): The recipient's email address.
+            login_link (str): The login link to include in the email.
+        """
         log.debug(
             f"Rendering activation complete template "
             f"'{self._activation_complete_email_template_name}' for {email}"
@@ -144,5 +151,65 @@ class EmailSender(EmailSenderInterface):
         await self._send_email(
             email,
             "Account Activated Successfully",
+            html_content
+        )
+
+    async def send_password_reset_email(
+        self,
+        email: str,
+        reset_link: str
+    ) -> None:
+        """
+        Send a password reset request email asynchronously.
+
+        Args:
+            email (str): The recipient's email address.
+            reset_link (str): The reset link to be included in the email.
+        """
+        log.debug(
+            f"Rendering password reset template "
+            f"'{self._password_email_template_name}' for {email}"
+        )
+
+        template = self._env.get_template(self._password_email_template_name)
+        html_content = template.render(email=email, reset_link=reset_link)
+
+        log.debug(
+            f"Rendered password reset template "
+            f"({len(html_content)} chars) for {email}"
+        )
+
+        await self._send_email(email, "Password Reset Request", html_content)
+
+    async def send_password_reset_complete_email(
+        self,
+        email: str,
+        login_link: str
+    ) -> None:
+        """
+        Send a password reset completion email asynchronously.
+
+        Args:
+            email (str): The recipient's email address.
+            login_link (str): The login link to be included in the email.
+        """
+        log.debug(
+            f"Rendering password reset complete template "
+            f"'{self._password_complete_email_template_name}' for {email}"
+        )
+
+        template = self._env.get_template(
+            self._password_complete_email_template_name
+        )
+        html_content = template.render(email=email, login_link=login_link)
+
+        log.debug(
+            f"Rendered password reset complete template "
+            f"({len(html_content)} chars) for {email}"
+        )
+
+        await self._send_email(
+            email,
+            "Your Password Has Been Successfully Reset",
             html_content
         )

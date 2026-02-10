@@ -41,8 +41,12 @@ class UserActivationRequestSchema(BaseModel):
     token: str = Field(..., description="Activation token")
 
 
+class ResendActivationRequestSchema(BaseModel):
+    email: EmailStr
+
+
 class UserLoginRequestSchema(BaseEmailPasswordSchema):
-    password: str
+    pass
 
 
 class UserLoginResponseSchema(BaseModel):
@@ -64,5 +68,16 @@ class PasswordResetRequestSchema(BaseModel):
     email: EmailStr
 
 
-class PasswordResetCompleteRequestSchema(BaseEmailPasswordSchema):
+class PasswordResetCompleteRequestSchema(BaseModel):
     token: str
+    password: str
+
+
+class ChangePasswordSchema(BaseModel):
+    old_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, value):
+        return validate_password_complexity(value)
