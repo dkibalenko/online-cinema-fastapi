@@ -1,6 +1,6 @@
 from datetime import datetime, date, timedelta, timezone
 from typing import List, Optional
-import enum
+from auth.enums import UserGroupEnum, GenderEnum
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 from sqlalchemy import (
@@ -18,17 +18,6 @@ from sqlalchemy import (
 from database import Base
 from auth.utils import generate_secure_token, hash_password, verify_password
 from auth.validators import validate_email, validate_password_complexity
-
-
-class UserGroupEnum(str, enum.Enum):
-    USER = "user"
-    MODERATOR = "moderator"
-    ADMIN = "admin"
-
-
-class GenderEnum(str, enum.Enum):
-    MAN = "man"
-    WOMAN = "woman"
 
 
 class UserGroup(Base):
