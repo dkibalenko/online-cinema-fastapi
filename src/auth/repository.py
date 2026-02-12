@@ -29,6 +29,30 @@ class UserRepository:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_id_with_group(self, user_id: int) -> User | None:
+        """
+        Retrieves a user by their ID, including their group.
+        """
+        stmt = (
+            select(User)
+            .options(joinedload(User.group))  # eager loading
+            .where(User.id == user_id)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_by_id_with_profile(self, user_id: int) -> User | None:
+        """
+        Retrieves a user by their ID, including their profile.
+        """
+        stmt = (
+            select(User)
+            .options(joinedload(User.profile))  # eager loading
+            .where(User.id == user_id)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_by_email(self, email: str) -> User | None:
         """
         Retrieves a user by their email address.
