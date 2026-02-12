@@ -1,11 +1,18 @@
 from datetime import datetime, timezone
-from typing import cast
+from typing import Tuple, cast
 
 from fastapi import status, HTTPException
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
-from exceptions import BaseSecurityError
-from auth.models import ActivationToken, PasswordResetToken, RefreshToken, User
+from exceptions import BaseSecurityError, InvalidTokenError, TokenExpiredError
+from auth.models import (
+    ActivationToken,
+    PasswordResetToken,
+    RefreshToken,
+    User,
+    UserGroupEnum,
+    UserProfile
+)
 from auth.schemas import (
     MessageResponseSchema,
     UserRegistrationRequestSchema,
@@ -18,9 +25,13 @@ from auth.schemas import (
     PasswordResetRequestSchema,
     PasswordResetCompleteRequestSchema,
     ChangePasswordSchema,
+    ProfileCreationSchema
 )
 from auth.interfaces import JWTAuthManagerInterface, EmailSenderInterface
 from auth.repository import UserRepository
+from storages.exceptions import S3ConnectionError, S3FileUploadError
+from storages.interfaces import S3StorageInterface
+from storages.s3_client import S3StorageClient
 from logger_config import get_logger
 from config import BaseAppSettings
 from cinema_celery.tasks.email_tasks import (
@@ -38,11 +49,13 @@ class AuthService:
         self,
         users: UserRepository,
         jwt: JWTAuthManagerInterface,
-        email_sender: EmailSenderInterface
+        email_sender: EmailSenderInterface,
+        s3_client: S3StorageInterface
     ):
         self.users = users
         self.jwt = jwt
         self.email_sender = email_sender
+        self.s3_client = s3_client
 
     async def register_user(
         self,
@@ -613,3 +626,113 @@ class AuthService:
         log.info("Password changed successfully")
 
         return MessageResponseSchema(message="Password changed successfully.")
+
+    async def create_user_profile(
+        self,
+        user_id: int,
+        data: ProfileCreationSchema,
+        jwt_token: str
+    ) -> Tuple[UserProfile, str]:
+        # 1. Validate token
+        try:
+            self.jwt.verify_access_token_or_raise(jwt_token)
+        except TokenExpiredError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token expired."
+            )
+        except InvalidTokenError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token."
+            )
+
+        jwt_payload = self.jwt.decode_access_token(jwt_token)
+
+        try:
+            current_user_id = int(jwt_payload.get("user_id"))
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload."
+            )
+
+        # 2. Load current user with group
+        current_user = await self.users.get_by_id_with_group(current_user_id)
+
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found."
+            )
+
+        # 3. Load target user
+        target_user = await self.users.get_by_id_with_profile(user_id)
+
+        if not target_user or not target_user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or inactive."
+            )
+
+        # 4. Check permissions
+        if (
+            not current_user_id == user_id
+            and not current_user.has_group(UserGroupEnum.ADMIN)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to edit this profile."
+            )
+
+        # 5. Check if profile already exists
+        if target_user.profile:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Profile already exists."
+            )
+
+        # 6. Upload avatar (optional)
+        avatar_url = None
+        file_name = None
+
+        if data.avatar:
+            contents = await data.avatar.read()
+
+            ext = data.avatar.content_type.split("/")[-1].lower()
+            ext = "jpg" if ext in ["jpeg", "jpg"] else "png"
+
+            file_name = f"avatars/{user_id}_avatar.{ext}"
+
+            try:
+                await self.s3_client.upload_file(file_name, contents)
+                avatar_url = await self.s3_client.get_file_url(file_name)
+            except (S3ConnectionError, S3FileUploadError):
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to upload avatar. Please try again later."
+                )
+
+        # 7. Create profile
+        profile = UserProfile(
+            user_id=user_id,
+            first_name=data.first_name.lower(),
+            last_name=data.last_name.lower(),
+            gender=data.gender,
+            date_of_birth=data.date_of_birth,
+            info=data.info,
+            avatar=file_name,
+        )
+
+        try:
+            self.users.add(profile)
+            await self.users.commit()
+            await self.users.refresh(profile)
+        except IntegrityError:
+            await self.users.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Error creating profile."
+            )
+
+        return profile, avatar_url
