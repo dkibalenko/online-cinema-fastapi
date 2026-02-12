@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status, Request
 
 from rate_limiting import limiter
 from config import BaseAppSettings, get_settings
-from auth.dependencies import get_auth_service, get_current_user
+from auth.dependencies import get_auth_service, get_current_user, get_token
 from auth.service import AuthService
 from auth.models import User
 from auth.schemas import (
@@ -19,7 +19,9 @@ from auth.schemas import (
     ResendActivationRequestSchema,
     PasswordResetRequestSchema,
     PasswordResetCompleteRequestSchema,
-    ChangePasswordSchema
+    ChangePasswordSchema,
+    ProfileResponseSchema,
+    ProfileCreationSchema
 )
 
 
@@ -157,3 +159,33 @@ async def change_password(
     auth: Annotated[AuthService, Depends(get_auth_service)]
 ) -> MessageResponseSchema:
     return await auth.change_password(user, data)
+
+
+@router.post(
+    "/users/{user_id}/profile/",
+    response_model=ProfileResponseSchema,
+    summary="User's profile creation",
+    status_code=status.HTTP_201_CREATED
+)
+async def create_user_profile(
+    user_id: int,
+    data: Annotated[ProfileCreationSchema, Depends(ProfileCreationSchema.as_form)],
+    jwt_token: Annotated[str, Depends(get_token)],
+    auth: Annotated[AuthService, Depends(get_auth_service)],
+) -> ProfileResponseSchema:
+    profile, avatar_url = await auth.create_user_profile(
+        user_id,
+        data,
+        jwt_token
+    )
+
+    return ProfileResponseSchema(
+        id=profile.id,
+        first_name=profile.first_name,
+        last_name=profile.last_name,
+        gender=profile.gender,
+        date_of_birth=profile.date_of_birth,
+        info=profile.info,
+        avatar=avatar_url,
+        user_id=profile.user_id
+    )
