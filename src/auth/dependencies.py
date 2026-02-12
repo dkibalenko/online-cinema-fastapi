@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -15,6 +15,8 @@ from config import BaseAppSettings
 from auth.service import AuthService
 from auth.interfaces import EmailSenderInterface
 from auth.email_manager import EmailSender
+from storages.interfaces import S3StorageInterface
+from storages.dependencies import get_s3_storage_client
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -137,14 +139,14 @@ async def get_current_user(
 
 def require_role(*allowed_roles: UserGroupEnum):
     """
-    Dependency factory that ensures the current user has one of the
-    allowed roles.
-    
-    Example:
-        require_role(UserGroupEnum.ADMIN)
-        require_role(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR)
+    Dependency factory ensuring the current user has one of the allowed roles.
+
+    Usage:
+        @router.get("/admin", dependencies=[Depends(require_role(UserGroupEnum.ADMIN))])
+        @router.post("/movies", dependencies=[Depends(require_role(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))])
     """
     def role_checker(current_user: User = Depends(get_current_user)) -> User:
+        # Check if user has any allowed role
         if not any(current_user.has_group(role) for role in allowed_roles):
             allowed = ", ".join(role.value for role in allowed_roles)
             raise HTTPException(
@@ -152,13 +154,42 @@ def require_role(*allowed_roles: UserGroupEnum):
                 detail=f"Access denied. Required role(s): {allowed}",
             )
         return current_user
+
     return role_checker
+
+
+def get_token(request: Request) -> str:
+    """
+    Extracts the Bearer token from the Authorization header.
+
+    :param request: FastAPI Request object.
+    :return: Extracted token string.
+    :raises HTTPException: If Authorization header is missing or invalid.
+    """
+    authorization: str = request.headers.get("Authorization")
+
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header is missing"
+        )
+
+    scheme, _, token = authorization.partition(" ")
+
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Authorization header format. Expected 'Bearer <token>'"
+        )
+
+    return token
 
 
 def get_auth_service(
     users: UserRepository = Depends(get_user_repository),
     jwt = Depends(get_jwt_auth_manager),
     email_sender: EmailSenderInterface = Depends(get_email_sender),
+    s3_client: S3StorageInterface = Depends(get_s3_storage_client)
 ) -> AuthService:
     """
     Dependency factory that returns an instance of AuthService.
@@ -175,4 +206,5 @@ def get_auth_service(
         users=users,
         jwt=jwt,
         email_sender=email_sender,
+        s3_client=s3_client
     )
