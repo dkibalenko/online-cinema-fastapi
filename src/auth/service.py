@@ -1,18 +1,12 @@
 from datetime import datetime, timezone
-from typing import Tuple, cast
+from typing import cast
 
 from fastapi import status, HTTPException
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy.exc import SQLAlchemyError
 
-from exceptions import BaseSecurityError, InvalidTokenError, TokenExpiredError
-from auth.models import (
-    ActivationToken,
-    PasswordResetToken,
-    RefreshToken,
-    User,
-    UserGroupEnum,
-    UserProfile
-)
+from exceptions import BaseSecurityError
+from users.models import User
+from auth.models import ActivationToken,PasswordResetToken, RefreshToken
 from auth.schemas import (
     MessageResponseSchema,
     UserRegistrationRequestSchema,
@@ -25,13 +19,9 @@ from auth.schemas import (
     PasswordResetRequestSchema,
     PasswordResetCompleteRequestSchema,
     ChangePasswordSchema,
-    ProfileCreationSchema
 )
 from auth.interfaces import JWTAuthManagerInterface, EmailSenderInterface
-from auth.repository import UserRepository
-from storages.exceptions import S3ConnectionError, S3FileUploadError
-from storages.interfaces import S3StorageInterface
-from storages.s3_client import S3StorageClient
+from auth.repository import AuthRepository
 from logger_config import get_logger
 from config import BaseAppSettings
 from cinema_celery.tasks.email_tasks import (
@@ -47,15 +37,13 @@ log = get_logger()
 class AuthService:
     def __init__(
         self,
-        users: UserRepository,
+        auth: AuthRepository,
         jwt: JWTAuthManagerInterface,
-        email_sender: EmailSenderInterface,
-        s3_client: S3StorageInterface
+        email_sender: EmailSenderInterface
     ):
-        self.users = users
+        self.auth = auth
         self.jwt = jwt
         self.email_sender = email_sender
-        self.s3_client = s3_client
 
     async def register_user(
         self,
@@ -78,7 +66,7 @@ class AuthService:
         log.info(f"Registration attempt for {user_data.email}")
 
         # 1. Check email uniqueness
-        existing_user = await self.users.get_by_email(user_data.email)
+        existing_user = await self.auth.get_user_by_email(user_data.email)
 
         if existing_user:
             raise HTTPException(
@@ -87,7 +75,7 @@ class AuthService:
             )
 
         # 2. Get default group
-        group = await self.users.get_default_user_group()
+        group = await self.auth.get_default_user_group()
 
         if not group:
             raise HTTPException(
@@ -102,18 +90,18 @@ class AuthService:
                 raw_password=user_data.password,
                 group_id=group.id
             )
-            self.users.add(user)
-            await self.users.flush()
+            self.auth.add(user)
+            await self.auth.flush()
 
             token = ActivationToken(user_id=user.id)
-            self.users.add(token)
+            self.auth.add(token)
 
-            await self.users.commit()
+            await self.auth.commit()
             # here, token is set right away before flush() & is available, so,
             # no need to query again. Also, refresh(user) need not be called,
             # since atts are valid after commit (expire_on_commit=False)
         except SQLAlchemyError:
-            await self.users.rollback()
+            await self.auth.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred during user creation."
@@ -154,7 +142,7 @@ class AuthService:
         log.info(f"Activation attempt for {activation_data.email}")
 
         # 1. Fetch token + user
-        token_record = await self.users.get_activation_token_record(
+        token_record = await self.auth.get_activation_token_record(
             email=activation_data.email,
             token=activation_data.token
         )
@@ -164,8 +152,8 @@ class AuthService:
         # 2. Validate token existence and expiration
         if not token_record or token_record.expires_at < now_utc:
             if token_record:
-                await self.users.delete_activation_token(token_record)
-                await self.users.commit()
+                await self.auth.delete_activation_token(token_record)
+                await self.auth.commit()
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -183,8 +171,8 @@ class AuthService:
 
         # 4. Activate user + delete token in one commit
         user.is_active = True
-        await self.users.delete_activation_token(token_record)
-        await self.users.commit()
+        await self.auth.delete_activation_token(token_record)
+        await self.auth.commit()
 
         # 5. Send confirmation email
         login_link = "http://127.0.0.1:8000/api/v1/cinema/auth/login"
@@ -204,7 +192,7 @@ class AuthService:
     ) -> MessageResponseSchema:
         log.info(f"Resend activation attempt for {email_data.email}")
 
-        user = await self.users.get_by_email(email_data.email)
+        user = await self.auth.get_user_by_email(email_data.email)
 
         if not user:
             raise HTTPException(
@@ -219,13 +207,13 @@ class AuthService:
             )
         
         # Delete old token if exists + create new
-        old_token = await self.users.get_activation_token_by_user_id(user.id)
+        old_token = await self.auth.get_activation_token_by_user_id(user.id)
         try:
-            async with self.users.db.begin():
+            async with self.auth.db.begin():
                 if old_token:
-                    await self.users.delete_activation_token(old_token)
+                    await self.auth.delete_activation_token(old_token)
                 new_token = ActivationToken(user_id=cast(int, user.id))
-                self.users.add(new_token)
+                self.auth.add(new_token)
         except SQLAlchemyError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -267,7 +255,7 @@ class AuthService:
         """
         log.info(f"Login attempt for {login_data.email}")
 
-        user = await self.users.get_by_email(login_data.email)
+        user = await self.auth.get_user_by_email(login_data.email)
 
         # 1. Validate user credentials
         if not user or not user.verify_password(login_data.password):
@@ -292,10 +280,10 @@ class AuthService:
                 days_valid=settings.LOGIN_TIME_DAYS,
                 token=jwt_refresh_token
             )
-            self.users.add(refresh_token)
-            await self.users.commit()
+            self.auth.add(refresh_token)
+            await self.auth.commit()
         except SQLAlchemyError:
-            await self.users.rollback()
+            await self.auth.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred while processing the login request.",
@@ -343,7 +331,7 @@ class AuthService:
             )
 
         # 2. Validate refresh token exists in DB
-        refresh_token_record = await self.users.get_refresh_token_record(
+        refresh_token_record = await self.auth.get_refresh_token_record(
             token=token_data.refresh_token
         )
 
@@ -357,15 +345,15 @@ class AuthService:
         now_utc = datetime.now(timezone.utc)
 
         if refresh_token_record.expires_at < now_utc:
-            await self.users.delete_refresh_token(refresh_token_record)
-            await self.users.commit()
+            await self.auth.delete_refresh_token(refresh_token_record)
+            await self.auth.commit()
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Refresh token expired.",
             )
 
         # 4. Validate user
-        user = await self.users.get_by_id(user_id=user_id)
+        user = await self.auth.get_user_by_id(user_id=user_id)
 
         if not user:
             raise HTTPException(
@@ -426,7 +414,7 @@ class AuthService:
             )
 
         # 2. Find refresh token in DB
-        refresh_token_record = await self.users.get_refresh_token_record(
+        refresh_token_record = await self.auth.get_refresh_token_record(
             token=token_data.refresh_token
         )
 
@@ -444,8 +432,8 @@ class AuthService:
             )
 
         # 4. Delete refresh token
-        await self.users.delete_refresh_token(refresh_token_record)
-        await self.users.commit()
+        await self.auth.delete_refresh_token(refresh_token_record)
+        await self.auth.commit()
 
         log.info(f"User {user_id} logged out successfully")
 
@@ -469,7 +457,7 @@ class AuthService:
         """
         log.info(f"Password reset request for {data.email}")
 
-        user = await self.users.get_by_email(data.email)
+        user = await self.auth.get_user_by_email(data.email)
 
         if not user or not user.is_active:
             # Do NOT reveal whether the email exists
@@ -479,20 +467,20 @@ class AuthService:
                 )
             )
 
-        old_token = await self.users.get_password_reset_token_by_user_id(
+        old_token = await self.auth.get_password_reset_token_by_user_id(
             user.id
         )
         try:
             # Delete old token
             if old_token:
-                await self.users.delete_password_reset_token(old_token)
+                await self.auth.delete_password_reset_token(old_token)
 
             # Create new token
             reset_token = PasswordResetToken(user_id=cast(int, user.id))
-            self.users.add(reset_token)
-            await self.users.commit()
+            self.auth.add(reset_token)
+            await self.auth.commit()
         except SQLAlchemyError as error:
-            await self.users.rollback()
+            await self.auth.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=str(error),
@@ -536,7 +524,7 @@ class AuthService:
 
         # 1. Validate token
         # Look up the token directly in the DB
-        token_record = await self.users.get_password_reset_token(data.token)
+        token_record = await self.auth.get_password_reset_token(data.token)
 
         if not token_record:
             raise HTTPException(
@@ -546,8 +534,8 @@ class AuthService:
 
         # 2. Validate token expiration
         if token_record.expires_at < datetime.now(timezone.utc):
-            await self.users.delete_password_reset_token(token_record)
-            await self.users.commit()
+            await self.auth.delete_password_reset_token(token_record)
+            await self.auth.commit()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Reset token expired."
@@ -555,7 +543,7 @@ class AuthService:
 
         # 3. Validate user
         # Load the user from the token
-        user = await self.users.get_by_id(token_record.user_id)
+        user = await self.auth.get_user_by_id(token_record.user_id)
 
         if not user:
             raise HTTPException(
@@ -566,10 +554,10 @@ class AuthService:
         # 4. Update password + delete token
         try:
             user.password = data.password
-            await self.users.delete_password_reset_token(token_record)
-            await self.users.commit()
+            await self.auth.delete_password_reset_token(token_record)
+            await self.auth.commit()
         except SQLAlchemyError:
-            await self.users.rollback()
+            await self.auth.rollback()
             raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
@@ -615,9 +603,9 @@ class AuthService:
             )
         try:
             user.password = data.new_password
-            await self.users.commit()
+            await self.auth.commit()
         except SQLAlchemyError as error:
-            await self.users.rollback()
+            await self.auth.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=str(error),
@@ -626,113 +614,3 @@ class AuthService:
         log.info("Password changed successfully")
 
         return MessageResponseSchema(message="Password changed successfully.")
-
-    async def create_user_profile(
-        self,
-        user_id: int,
-        data: ProfileCreationSchema,
-        jwt_token: str
-    ) -> Tuple[UserProfile, str]:
-        # 1. Validate token
-        try:
-            self.jwt.verify_access_token_or_raise(jwt_token)
-        except TokenExpiredError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token expired."
-            )
-        except InvalidTokenError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token."
-            )
-
-        jwt_payload = self.jwt.decode_access_token(jwt_token)
-
-        try:
-            current_user_id = int(jwt_payload.get("user_id"))
-        except (TypeError, ValueError):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload."
-            )
-
-        # 2. Load current user with group
-        current_user = await self.users.get_by_id_with_group(current_user_id)
-
-        if not current_user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found."
-            )
-
-        # 3. Load target user
-        target_user = await self.users.get_by_id_with_profile(user_id)
-
-        if not target_user or not target_user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or inactive."
-            )
-
-        # 4. Check permissions
-        if (
-            not current_user_id == user_id
-            and not current_user.has_group(UserGroupEnum.ADMIN)
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to edit this profile."
-            )
-
-        # 5. Check if profile already exists
-        if target_user.profile:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Profile already exists."
-            )
-
-        # 6. Upload avatar (optional)
-        avatar_url = None
-        file_name = None
-
-        if data.avatar:
-            contents = await data.avatar.read()
-
-            ext = data.avatar.content_type.split("/")[-1].lower()
-            ext = "jpg" if ext in ["jpeg", "jpg"] else "png"
-
-            file_name = f"avatars/{user_id}_avatar.{ext}"
-
-            try:
-                await self.s3_client.upload_file(file_name, contents)
-                avatar_url = await self.s3_client.get_file_url(file_name)
-            except (S3ConnectionError, S3FileUploadError):
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to upload avatar. Please try again later."
-                )
-
-        # 7. Create profile
-        profile = UserProfile(
-            user_id=user_id,
-            first_name=data.first_name.lower(),
-            last_name=data.last_name.lower(),
-            gender=data.gender,
-            date_of_birth=data.date_of_birth,
-            info=data.info,
-            avatar=file_name,
-        )
-
-        try:
-            self.users.add(profile)
-            await self.users.commit()
-            await self.users.refresh(profile)
-        except IntegrityError:
-            await self.users.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Error creating profile."
-            )
-
-        return profile, avatar_url

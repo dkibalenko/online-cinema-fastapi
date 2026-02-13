@@ -40,7 +40,11 @@ class S3StorageClient(S3StorageInterface):
             aws_secret_access_key=self._secret_key,
         )
 
-    async def upload_file(self, file_name: str, file_data: Union[bytes, bytearray]) -> None:
+    async def upload_file(
+        self,
+        file_name: str,
+        file_data: Union[bytes, bytearray]
+    ) -> None:
         """
         Asynchronously upload a file to the S3-compatible storage.
 
@@ -63,9 +67,13 @@ class S3StorageClient(S3StorageInterface):
                     ContentType="image/jpeg"
                 )
         except (ConnectionError, HTTPClientError, NoCredentialsError) as e:
-            raise S3ConnectionError(f"Failed to connect to S3 storage: {str(e)}") from e
+            raise S3ConnectionError(
+                f"Failed to connect to S3 storage: {str(e)}"
+            ) from e
         except BotoCoreError as e:
-            raise S3FileUploadError(f"Failed to upload to S3 storage: {str(e)}") from e
+            raise S3FileUploadError(
+                f"Failed to upload to S3 storage: {str(e)}"
+            ) from e
 
     async def get_file_url(self, file_name: str) -> str:
         """

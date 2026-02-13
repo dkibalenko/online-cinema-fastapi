@@ -1,4 +1,3 @@
-# src/auth/exceptions.py
 from exceptions import BaseSecurityError
 
 

@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -6,37 +6,21 @@ from sqlalchemy import select
 from config import get_settings
 from database import get_db
 from exceptions import InvalidTokenError, TokenExpiredError
-from auth.models import User, UserGroupEnum
-
+from users.models import User, UserGroupEnum
 from auth.interfaces import JWTAuthManagerInterface
 from auth.token_manager import JWTAuthManager
-from auth.repository import UserRepository
+from auth.repository import AuthRepository
 from config import BaseAppSettings
 from auth.service import AuthService
 from auth.interfaces import EmailSenderInterface
 from auth.email_manager import EmailSender
-from storages.interfaces import S3StorageInterface
-from storages.dependencies import get_s3_storage_client
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
-def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
-    """
-    Retrieves an instance of the `UserRepository` class based on the provided
-    database session.
-
-    The `UserRepository` provides methods for performing CRUD operations
-    on users.
-
-    Args:
-        db (AsyncSession): The database session to use for database operations.
-
-    Returns:
-        `UserRepository`: An instance of the `UserRepository` class.
-    """
-    return UserRepository(db)
+def get_auth_repository(db: AsyncSession = Depends(get_db)) -> AuthRepository:
+    return AuthRepository(db)
 
 
 def get_email_sender(settings: BaseAppSettings = Depends(get_settings)):
@@ -158,53 +142,13 @@ def require_role(*allowed_roles: UserGroupEnum):
     return role_checker
 
 
-def get_token(request: Request) -> str:
-    """
-    Extracts the Bearer token from the Authorization header.
-
-    :param request: FastAPI Request object.
-    :return: Extracted token string.
-    :raises HTTPException: If Authorization header is missing or invalid.
-    """
-    authorization: str = request.headers.get("Authorization")
-
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization header is missing"
-        )
-
-    scheme, _, token = authorization.partition(" ")
-
-    if scheme.lower() != "bearer" or not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Authorization header format. Expected 'Bearer <token>'"
-        )
-
-    return token
-
-
 def get_auth_service(
-    users: UserRepository = Depends(get_user_repository),
+    auth: AuthRepository = Depends(get_auth_repository),
     jwt = Depends(get_jwt_auth_manager),
-    email_sender: EmailSenderInterface = Depends(get_email_sender),
-    s3_client: S3StorageInterface = Depends(get_s3_storage_client)
+    email_sender: EmailSenderInterface = Depends(get_email_sender)
 ) -> AuthService:
-    """
-    Dependency factory that returns an instance of AuthService.
-
-    The AuthService instance is created with the following dependencies:
-    - users: UserRepository instance
-    - jwt: JWTAuthManager instance
-    - email_sender: EmailSenderInterface instance
-
-    Returns:
-        AuthService: An instance of AuthService
-    """
     return AuthService(
-        users=users,
+        auth=auth,
         jwt=jwt,
-        email_sender=email_sender,
-        s3_client=s3_client
+        email_sender=email_sender
     )
