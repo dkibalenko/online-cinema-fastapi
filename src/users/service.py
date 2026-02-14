@@ -136,3 +136,27 @@ class UserService:
             )
 
         return profile, avatar_url
+
+    async def get_my_profile(self, user_id: int) -> Tuple[UserProfile, str | None]:
+        user = await self.users.get_by_id_with_profile(user_id)
+
+        if not user or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found or inactive."
+            )
+
+        if not user.profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Profile not created yet."
+            )
+
+        avatar_url = None
+        if user.profile.avatar:
+            try:
+                avatar_url = await self.s3_client.get_file_url(user.profile.avatar)
+            except (S3ConnectionError, S3FileUploadError):
+                avatar_url = None
+
+        return user.profile, avatar_url
