@@ -67,6 +67,9 @@ class UserRepository:
     def add(self, instance: Any) -> None:
         self.db.add(instance)
 
+    async def delete(self, instance: Any) -> None:
+        await self.db.delete(instance)
+
     async def flush(self) -> None:
         await self.db.flush()
 
