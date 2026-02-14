@@ -51,6 +51,9 @@ def validate_name(name: str) -> str:
     """
     Validates a name by checking if it only contains english letters.
     """
+    if name is None:
+        return None
+
     if re.search(r'^[A-Za-z]*$', name) is None:
         raise ValueError(f"{name} contains non-english letters")
     return name
@@ -93,6 +96,9 @@ def validate_image(avatar: UploadFile | None) -> UploadFile | None:
 
 
 def validate_gender(gender: str) -> str:
+    if gender is None:
+        return None
+
     if gender not in GenderEnum.__members__.values():
         raise ValueError(
             f"Gender must be one of: {', '.join(g.value for g in GenderEnum)}"
@@ -110,6 +116,9 @@ def validate_birth_date(birth_date: date) -> date:
     :raises ValueError: If the birth date is in the future or the user is
         less than 18 years old.
     """
+    if birth_date is None:
+        return None
+
     if birth_date.year < 1900:
         raise ValueError(
             "Invalid birth date - year must be greater than 1900."
