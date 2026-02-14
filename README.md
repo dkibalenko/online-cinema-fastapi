@@ -2,6 +2,113 @@
 
 An online cinema is a digital platform that allows users to select, watch, and purchase access to movies and other video materials via the internet.
 
+## 🔐 Authentication & User Management
+
+The project uses a clean domain‑based architecture with separate apps:
+
+- `auth/` — authentication, tokens, login, registration
+- `users/` — user identity, profiles, roles (RBAC)
+
+This separation keeps the codebase maintainable and avoids circular imports.
+
+### 📁 Directory Structure
+```
+src/
+  auth/
+    router.py
+    service.py
+    repository.py
+    dependencies.py
+    models.py
+  users/
+    router.py
+    service.py
+    repository.py
+    dependencies.py
+    models.py
+    enums.py
+```
+### 🔐 Auth App
+The auth app handles:
+- User registration
+- Email activation
+- Login
+- Refresh tokens
+- Logout
+- Password reset (request + complete)
+- Password change
+- Token validation
+- Email notifications via Celery
+
+#### Token Models
+
+All token models inherit from a shared TokenBaseModel:
+- `ActivationToken`
+- `PasswordResetToken`
+- `RefreshToken`
+
+They are stored in a single module:
+```
+auth/models.py
+```
+This keeps the authentication domain cohesive and avoids fragmentation.
+
+#### JWT Authentication
+
+The project uses:
+- Access tokens (short‑lived)
+- Refresh tokens (stored in DB)
+- Role‑based access control (RBAC)
+
+`get_current_user` decodes the access token and loads the user from the database.
+
+### 👤 Users App
+The users app manages:
+- User entity
+- User groups (RBAC)
+- User profiles
+- Profile creation
+- Profile retrieval
+- `/users/me` endpoint
+
+#### User Models
+All user‑related models live in one file:
+```
+users/models.py
+```
+This includes:
+- `User`
+- `UserGroup`
+- `UserProfile`
+
+Enums are stored separately:
+```
+users/enums.py
+```
+
+#### User Profiles
+Users can create a profile with:
+- First name
+- Last name
+- Gender
+- Birth date
+- Info
+- Avatar (uploaded to S3)
+
+Admins can create profiles for other users.
+
+#### `/users/me` Endpoint
+Authenticated users can retrieve their own profile:
+```
+GET /api/v1/cinema/users/me/
+```
+Returns:
+- Profile data
+- Avatar URL
+- User metadata
+
+---
+
 ## Database Migrations (Local + Docker)
 This project uses Alembic for SQLAlchemy schema migrations.
 Migrations are generated locally and applied inside Docker using a dedicated migrator service.
