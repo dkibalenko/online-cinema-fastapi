@@ -15,7 +15,7 @@ from users.schemas import (
 )
 
 
-router = APIRouter()
+router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get(
@@ -51,7 +51,7 @@ async def get_current_user_profile(
 @limiter.limit("3/minute")
 async def create_user_profile(
     request: Request,
-    user_id: int,
+    user_id: int,  # is sent separately in the path
     data: Annotated[ProfileCreationSchema, Depends(ProfileCreationSchema.as_form)],
     jwt_token: Annotated[str, Depends(get_token)],
     users: Annotated[UserService, Depends(get_users_service)],

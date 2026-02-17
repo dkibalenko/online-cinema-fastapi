@@ -32,18 +32,10 @@ def create_app() -> FastAPI:
     # Routers
     api_version_prefix = "/api/v1/cinema"
 
-    app.include_router(
-        auth_router, prefix=f"{api_version_prefix}/auth", tags=["auth"]
-    )
-    app.include_router(
-        users_router, prefix=f"{api_version_prefix}/users", tags=["users"]
-    )
-    app.include_router(
-        movies_router, prefix=f"{api_version_prefix}/movies", tags=["movies"]
-    )
-    app.include_router(
-        genres_router, prefix=f"{api_version_prefix}/genres", tags=["genres"]
-    )
+    app.include_router(auth_router, prefix=f"{api_version_prefix}")
+    app.include_router(users_router, prefix=f"{api_version_prefix}")
+    app.include_router(movies_router, prefix=f"{api_version_prefix}")
+    app.include_router(genres_router, prefix=f"{api_version_prefix}")
 
     # Middleware
     app.state.limiter = limiter

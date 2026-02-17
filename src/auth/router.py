@@ -23,7 +23,7 @@ from auth.schemas import (
 )
 
 
-router = APIRouter()
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post(
