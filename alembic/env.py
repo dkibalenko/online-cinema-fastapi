@@ -10,6 +10,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from database import Base
 from auth import models as auth_models  # noqa: F401
+from users import models as user_models  # noqa: F401
 from movies import models as movie_models  # noqa: F401
 
 

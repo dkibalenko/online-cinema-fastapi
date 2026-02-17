@@ -10,7 +10,7 @@ from logger_config import setup_logging, get_logger
 from config import get_settings
 from database import get_db_contextmanager
 
-from auth.models import UserGroup, UserGroupEnum
+from users.models import UserGroup, UserGroupEnum
 from movies.models import (
     Movie,
     Certification,

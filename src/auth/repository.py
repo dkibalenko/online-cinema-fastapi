@@ -4,24 +4,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from auth.models import (
-    User,
-    UserGroup,
-    ActivationToken,
-    PasswordResetToken,
-    RefreshToken,
-    UserGroupEnum
-)
+from users.models import User
+from users.enums import UserGroupEnum
+from users.models import UserGroup
+from auth.models import ActivationToken, PasswordResetToken, RefreshToken
 
 
-class UserRepository:
+class AuthRepository:  # rename to AuthRepository
     """
     Repository for user-related database operations.
     """
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_by_id(self, user_id: int) -> User | None:
+    async def get_user_by_id(self, user_id: int) -> User | None:
         """
         Retrieves a user by their ID.
         """
@@ -29,7 +25,7 @@ class UserRepository:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_by_email(self, email: str) -> User | None:
+    async def get_user_by_email(self, email: str) -> User | None:
         """
         Retrieves a user by their email address.
         """

@@ -19,11 +19,11 @@ from auth.schemas import (
     ResendActivationRequestSchema,
     PasswordResetRequestSchema,
     PasswordResetCompleteRequestSchema,
-    ChangePasswordSchema
+    ChangePasswordSchema,
 )
 
 
-router = APIRouter()
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post(

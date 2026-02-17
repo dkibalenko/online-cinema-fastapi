@@ -38,6 +38,12 @@ class BaseAppSettings(BaseSettings):
     SMTP_PASSWORD: str
     SMTP_USE_TLS: bool
 
+    S3_STORAGE_HOST: str
+    S3_STORAGE_PORT: int
+    S3_STORAGE_ACCESS_KEY: str
+    S3_STORAGE_SECRET_KEY: str
+    S3_BUCKET_NAME: str
+
     # Safe defaults
     PATH_TO_EMAIL_TEMPLATES_DIR: str = str(BASE_DIR / "auth" / "templates")
     ACTIVATION_EMAIL_TEMPLATE_NAME: str = "activation_request.html"
@@ -46,6 +52,10 @@ class BaseAppSettings(BaseSettings):
     PASSWORD_RESET_COMPLETE_TEMPLATE_NAME: str = "password_reset_complete.html"
 
     LOGIN_TIME_DAYS: int = 7
+
+    @property
+    def S3_STORAGE_ENDPOINT(self) -> str:
+        return f"http://{self.S3_STORAGE_HOST}:{self.S3_STORAGE_PORT}"
 
 
 class Settings(BaseAppSettings):

@@ -1,7 +1,11 @@
-# src/auth/schemas.py
-from pydantic import BaseModel, EmailStr, field_validator, Field
+from pydantic import (
+    BaseModel,
+    EmailStr,
+    field_validator,
+    Field
+)
 
-from auth.validators import validate_password_complexity
+from users.validators import validate_password_complexity
 
 
 class MessageResponseSchema(BaseModel):
