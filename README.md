@@ -14,19 +14,24 @@ This separation keeps the codebase maintainable and avoids circular imports.
 ### 📁 Directory Structure
 ```
 src/
+  __init__.py
   auth/
+    __init__.py
     router.py
     service.py
     repository.py
     dependencies.py
     models.py
   users/
+    __init__.py
     router.py
     service.py
     repository.py
     dependencies.py
     models.py
     enums.py
+    validators.py
+    utils.py
 ```
 ### 🔐 Auth App
 The auth app handles:
@@ -197,3 +202,20 @@ This ensures:
 - Migrations run automatically on container startup
 - No autogeneration happens inside Docker. Docker should only apply migrations, never create them.
 - Database schema is always up‑to‑date
+
+## Movies App
+
+Structure:
+```
+movies/
+│
+├── router.py
+├── dependencies.py
+├── service.py
+├── repository.py
+├── exceptions.py
+├── utils.py
+├── filters.py
+├── schemas.py
+└── models.py
+```
