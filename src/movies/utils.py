@@ -31,7 +31,7 @@ async def get_or_create_related(
     stmt = select(model).where(model.name.in_(unique_names))
     result = await db.execute(stmt)
     existing_items = list(result.scalars().all())
-    
+
     # Map by name for quick lookup
     existing_map = {item.name: item for item in existing_items}
 
