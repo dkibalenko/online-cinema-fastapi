@@ -107,3 +107,36 @@ class GenreWithCountSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class MovieFilterParams(BaseModel):
+    genre_id: Optional[int] = Field(
+        None,
+        description="Filter movies by genre ID"
+    )
+    search: Optional[str] = Field(
+        None, description="Search by title, description, star, or director"
+    )
+    year: Optional[int] = Field(None, description="Filter by year")
+    min_imdb: Optional[float] = Field(
+        None, description="Filter by minimum IMDb rating"
+    )
+    min_price: Optional[float] = Field(
+        None, description="Filter by minimum price"
+    )
+    max_price: Optional[float] = Field(
+        None, description="Filter by maximum price"
+    )
+
+
+class MovieSortParams(BaseModel):
+    sort_by: Optional[str] = Field(
+        "id",
+        pattern="^(id|name|year|imdb|votes|price)$",
+        description="Field to sort by"
+    )
+    order: Optional[str] = Field(
+        "desc",
+        pattern="^(asc|desc)$",
+        description="Sort order: asc or desc"
+    )
