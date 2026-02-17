@@ -25,7 +25,6 @@ class ProfileBaseSchema(BaseModel):
     gender: Annotated[str, AfterValidator(validate_gender)]
     date_of_birth: Annotated[date, AfterValidator(validate_birth_date)]
     info: str
-    user_id: int | None = None
 
     @field_validator("info", mode="after")
     @classmethod
@@ -69,6 +68,7 @@ class ProfileCreationSchema(ProfileBaseSchema):
 
 class ProfileResponseSchema(ProfileBaseSchema):
     id: int
+    user_id: int
     avatar: str | None
 
     model_config = ConfigDict(from_attributes=True)
