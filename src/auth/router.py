@@ -27,7 +27,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post(
-    "/register/",
+    "/register",
     response_model=UserRegistrationResponseSchema,
     summary="User Registration",
     status_code=status.HTTP_201_CREATED
@@ -43,7 +43,7 @@ async def register_user(
 
 
 @router.post(  # for a clickable activation link we need GET /activate?token=...
-    "/activate/",
+    "/activate",
     response_model=MessageResponseSchema,
     summary="User Activation",
     status_code=status.HTTP_200_OK
@@ -57,7 +57,7 @@ async def activate_account(
 
 
 @router.post(
-    "/activate/resend/",
+    "/activate/resend",
     response_model=MessageResponseSchema,
     summary="Resend Activation Token",
     status_code=status.HTTP_200_OK
@@ -72,7 +72,7 @@ async def resend_activation(
 
 
 @router.post(
-    "/login/",
+    "/login",
     response_model=UserLoginResponseSchema,
     summary="User login",
     status_code=status.HTTP_200_OK
@@ -88,7 +88,7 @@ async def login_user(
 
 
 @router.post(
-    "/refresh/",
+    "/refresh",
     response_model=TokenRefreshResponseSchema,
     summary="Refresh Access Token",
     status_code=status.HTTP_200_OK,
@@ -103,7 +103,7 @@ async def refresh_access_token(
 
 
 @router.post(
-    "/logout/",
+    "/logout",
     response_model=MessageResponseSchema,
     summary="Logout user",
     status_code=status.HTTP_200_OK,
@@ -118,7 +118,7 @@ async def logout_user(
 
 
 @router.post(
-    "/password-reset/request/",
+    "/password-reset/request",
     response_model=MessageResponseSchema,
     summary="Request Password Reset Token",
     status_code=status.HTTP_200_OK
@@ -133,7 +133,7 @@ async def request_password_reset_token(
 
 
 @router.post(
-    "/password-reset/complete/",
+    "/password-reset/complete",
     response_model=MessageResponseSchema,
     summary="Complete Password Reset",
     status_code=status.HTTP_200_OK
@@ -146,7 +146,7 @@ async def complete_password_reset(
 
 
 @router.post(
-    "/password-change/",
+    "/password-change",
     response_model=MessageResponseSchema,
     summary="Change Password",
     status_code=status.HTTP_200_OK

@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from config import get_settings
 from database import get_db
+from logger_config import get_logger
 from exceptions import InvalidTokenError, TokenExpiredError
 from users.models import User, UserGroupEnum
 from auth.interfaces import JWTAuthManagerInterface
@@ -14,6 +15,8 @@ from config import BaseAppSettings
 from auth.service import AuthService
 from auth.interfaces import EmailSenderInterface
 from auth.email_manager import EmailSender
+
+log = get_logger()
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -71,17 +74,20 @@ async def get_current_user(
     try:
         payload = jwt_manager.decode_access_token(token)
     except TokenExpiredError:
+        log.error("Access token has expired")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Access token has expired",
         )
     except InvalidTokenError:
+        log.error("Invalid access token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid access token",
         )
 
     if payload.get("type") != "access":
+        log.error("Invalid token type")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token type",
@@ -90,6 +96,7 @@ async def get_current_user(
     user_id = payload.get("user_id")
 
     if not user_id:
+        log.error("Token payload missing user ID")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token payload missing user ID",
@@ -98,6 +105,7 @@ async def get_current_user(
     try:
         user_id_int = int(user_id)
     except (TypeError, ValueError):
+        log.error("Invalid token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
@@ -107,12 +115,14 @@ async def get_current_user(
     user = result.scalar_one_or_none()
 
     if not user:
+        log.error("User not found")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
 
     if not user.is_active:
+        log.error("User account is not activated")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is not activated",

@@ -10,7 +10,10 @@ from movies.models import Movie, Genre, Star, Director, Certification
 from movies.schemas import (
     MovieCreateSchema,
     MovieUpdateSchema,
-    GenreWithCountSchema
+    GenreWithCountSchema,
+    MovieReactionSummarySchema,
+    MovieReactionActionResponseSchema,
+    
 )
 
 log = get_logger()
@@ -194,3 +197,171 @@ class MovieService:
             )
             for row in rows
         ]
+
+    async def _ensure_movie_exists(self, movie_id: int) -> None:
+        movie = await self.repo.get_movie_basic(movie_id)
+
+        if not movie:
+            log.warning(f"Movie not found for reaction | movie_id={movie_id}")
+            raise MovieNotFoundError(f"Movie with ID {movie_id} not found.")
+
+    async def _build_reaction_summary(
+        self,
+        user_id: int,
+        movie_id: int
+    ) -> MovieReactionSummarySchema:
+        """
+        Build a summary of reactions for a movie and a user.
+
+        :param user_id: The ID of the user.
+        :param movie_id: The ID of the movie.
+        :return: A MovieReactionSummarySchema object.
+        """
+        likes, dislikes = await self.repo.get_movie_reaction_counts(movie_id)
+        user_reaction = await self.repo.get_user_movie_reaction(
+            user_id, movie_id
+        )
+
+        if user_reaction is True:
+            reaction_str = "like"
+        elif user_reaction is False:
+            reaction_str = "dislike"
+        else:
+            reaction_str = None
+
+        return MovieReactionSummarySchema(
+            movie_id=movie_id,
+            likes=likes,
+            dislikes=dislikes,
+            user_reaction=reaction_str
+        )
+
+    async def like_movie(
+        self,
+        user_id: int,
+        movie_id: int
+    ) -> MovieReactionActionResponseSchema:
+        """
+        Like a movie.
+
+        :param user_id: The ID of the user.
+        :param movie_id: The ID of the movie.
+        :return: A MovieReactionActionResponseSchema object.
+        """
+        log.info(f"Like movie | user_id={user_id} movie_id={movie_id}")
+        await self._ensure_movie_exists(movie_id)
+
+        await self.repo.upsert_movie_reaction(
+            user_id=user_id,
+            movie_id=movie_id,
+            is_like=True
+        )
+        await self.repo.commit()
+
+        summary = await self._build_reaction_summary(user_id, movie_id)
+        return MovieReactionActionResponseSchema(
+            movie_id=movie_id,
+            action="like",
+            likes=summary.likes,
+            dislikes=summary.dislikes,
+            user_reaction=summary.user_reaction
+        )
+
+    async def dislike_movie(
+        self,
+        user_id: int,
+        movie_id: int
+    ) -> MovieReactionActionResponseSchema:
+        """
+        Dislike a movie.
+
+        :param user_id: The ID of the user.
+        :param movie_id: The ID of the movie.
+        :return: A MovieReactionActionResponseSchema object.
+        """
+        log.info(f"Dislike movie | user_id={user_id} movie_id={movie_id}")
+        await self._ensure_movie_exists(movie_id)
+
+        await self.repo.upsert_movie_reaction(
+            user_id=user_id,
+            movie_id=movie_id,
+            is_like=False
+        )
+        await self.repo.commit()
+
+        summary = await self._build_reaction_summary(user_id, movie_id)
+        return MovieReactionActionResponseSchema(
+            movie_id=movie_id,
+            action="dislike",
+            likes=summary.likes,
+            dislikes=summary.dislikes,
+            user_reaction=summary.user_reaction
+        )
+
+    async def remove_movie_reaction(
+        self,
+        user_id: int,
+        movie_id: int
+    ) -> MovieReactionActionResponseSchema:
+        """
+        Remove a reaction from a movie.
+
+        :param user_id: The ID of the user.
+        :param movie_id: The ID of the movie.
+        :return: A MovieReactionActionResponseSchema object.
+        """
+        log.info(
+            f"Remove movie reaction | user_id={user_id} movie_id={movie_id}"
+        )
+        await self._ensure_movie_exists(movie_id)
+
+        await self.repo.remove_movie_reaction(user_id, movie_id)
+        await self.repo.commit()
+
+        summary = await self._build_reaction_summary(user_id, movie_id)
+        return MovieReactionActionResponseSchema(
+            movie_id=movie_id,
+            action="removed",
+            likes=summary.likes,
+            dislikes=summary.dislikes,
+            user_reaction=summary.user_reaction
+        )
+
+    async def get_movie_reactions(
+        self,
+        user_id: int,
+        movie_id: int
+    ) -> MovieReactionSummarySchema:
+        """
+        Get reactions summary for a movie.
+
+        :param user_id: The ID of the user.
+        :param movie_id: The ID of the movie.
+        :return: A MovieReactionSummarySchema object.
+        """
+        log.info(
+            f"Fetching movie reactions | user_id={user_id} movie_id={movie_id}"
+        )
+        movie = await self.repo.get_movie_basic(movie_id)
+        if not movie:
+            log.warning(f"Movie not found for reaction | movie_id={movie_id}")
+            raise MovieNotFoundError(f"Movie with ID {movie_id} not found.")
+
+        likes, dislikes = await self.repo.get_movie_reaction_counts(movie_id)
+        user_reaction = await self.repo.get_user_movie_reaction(
+            user_id, movie_id
+        )
+
+        if user_reaction is True:
+            reaction = "like"
+        elif user_reaction is False:
+            reaction = "dislike"
+        else:
+            reaction = None
+
+        return MovieReactionSummarySchema(
+            movie_id=movie_id,
+            likes=likes,
+            dislikes=dislikes,
+            user_reaction=reaction
+        )

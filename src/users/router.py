@@ -19,7 +19,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get(
-    "/me/profile/",
+    "/me/profile",
     response_model=ProfileResponseSchema,
     summary="Get current user's profile",
     status_code=status.HTTP_200_OK,
@@ -43,7 +43,7 @@ async def get_current_user_profile(
 
 
 @router.post(
-    "/{user_id}/profile/",
+    "/{user_id}/profile",
     response_model=ProfileResponseSchema,
     summary="User's profile creation",
     status_code=status.HTTP_201_CREATED
@@ -75,7 +75,7 @@ async def create_user_profile(
 
 
 @router.patch(
-    "/me/profile/",
+    "/me/profile",
     response_model=ProfileResponseSchema,
     summary="Update current user's profile",
     status_code=status.HTTP_200_OK,
@@ -106,7 +106,7 @@ async def update_my_profile(
 
 
 @router.delete(
-    "/me/profile/",
+    "/me/profile",
     response_model=MessageResponseSchema,
     summary="Delete current user's profile",
     status_code=status.HTTP_200_OK,
