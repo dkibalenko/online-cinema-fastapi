@@ -1,3 +1,4 @@
+from __future__ import annotations
 from datetime import datetime, date
 from typing import List, Optional
 
@@ -78,6 +79,11 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+    movie_likes: Mapped[list["MovieLike"]] = relationship(
+        "MovieLike",
+        back_populates="user"
+    )
+
 
     def __repr__(self):
         return (
@@ -141,6 +147,7 @@ class User(Base):
 
 class UserProfile(Base):
     __tablename__ = "user_profiles"
+    __table_args__ = (UniqueConstraint("user_id"),)
 
     id: Mapped[int] = mapped_column(
         primary_key=True,
@@ -159,8 +166,6 @@ class UserProfile(Base):
         unique=True
     )
     user: Mapped[User] = relationship("User", back_populates="profile")
-
-    __table_args__ = (UniqueConstraint("user_id"),)
 
     def __repr__(self):
         return (

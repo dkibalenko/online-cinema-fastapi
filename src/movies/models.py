@@ -1,6 +1,8 @@
+from __future__ import annotations
 import uuid
 from typing import Optional, List
 from decimal import Decimal
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import (
@@ -12,7 +14,9 @@ from sqlalchemy import (
     ForeignKey,
     UniqueConstraint,
     Table,
-    Column
+    Column,
+    DateTime,
+    Boolean
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.sql import func
@@ -122,6 +126,11 @@ class Director(Base):
 
 class Movie(Base):
     __tablename__ = "movies"
+    __table_args__ = (
+        UniqueConstraint(
+            "name", "year", "time", name="unique_movie_constraint"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     uu_id: Mapped[uuid.UUID] = mapped_column(
@@ -164,11 +173,9 @@ class Movie(Base):
         secondary=MoviesDirectorsModel,
         back_populates="movies"
     )
-
-    __table_args__ = (
-        UniqueConstraint(
-            "name", "year", "time", name="unique_movie_constraint"
-        ),
+    likes: Mapped[list["MovieLike"]] = relationship(
+        "MovieLike",
+        back_populates="movie"
     )
 
     @classmethod
@@ -177,6 +184,34 @@ class Movie(Base):
 
     def __repr__(self):
         return f"Movie(name={self.name}, year={self.year}, imdb={self.imdb})"
+
+
+class MovieLike(Base):
+    __tablename__ = "movie_likes"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", 
+            "movie_id",
+            name="uq_movie_like_user_movie"
+        ),
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+    movie_id: Mapped[int] = mapped_column(
+        ForeignKey("movies.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+    is_like: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+    movie: Mapped["Movie"] = relationship("Movie", back_populates="likes")
+    user: Mapped["User"] = relationship("User", back_populates="movie_likes")
 
 
 class Certification(Base):
