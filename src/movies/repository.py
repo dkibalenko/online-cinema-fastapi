@@ -1,11 +1,12 @@
-from typing import Any, Optional, List
+from typing import Any, Optional, List, Tuple
 
 from sqlalchemy import select, func
+from sqlalchemy import case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.engine import Row
 
-from movies.models import Movie, Genre, MoviesGenresModel
+from movies.models import Movie, Genre, MoviesGenresModel, MovieLike
 
 
 class MovieRepository:
@@ -106,3 +107,113 @@ class MovieRepository:
         result = await self.db.execute(stmt)
 
         return result.all()
+    
+    async def upsert_movie_reaction(
+        self,
+        user_id: int,
+        movie_id: int,
+        is_like: bool
+    ) -> None:
+        """
+        Upsert a movie reaction from a user
+
+        :param user_id: The user ID who reacted to the movie
+        :param movie_id: The movie ID which the user reacted to
+        :param is_like: Whether the user liked the movie
+
+        :return: None
+        """
+        # 1. Check if the user has already reacted to the movie
+        stmt = select(MovieLike).where(
+            MovieLike.user_id == user_id,
+            MovieLike.movie_id == movie_id
+        )
+        result = await self.db.execute(stmt)
+        existing = result.scalar_one_or_none()
+
+        # 2. Update or insert the reaction
+        if existing:
+            existing.is_like = is_like
+        else:
+            self.db.add(
+                MovieLike(
+                    user_id=user_id,
+                    movie_id=movie_id,
+                    is_like=is_like
+                )
+            )
+
+    async def remove_movie_reaction(
+        self,
+        user_id: int,
+        movie_id: int
+    ) -> None:
+        """
+        Remove a movie reaction from a user.
+
+        :param user_id: The user ID who reacted to the movie
+        :param movie_id: The movie ID which the user reacted to
+
+        :return: None
+        """
+        # 1. Check if the user has already reacted to the movie
+        stmt = select(MovieLike).where(
+            MovieLike.user_id == user_id,
+            MovieLike.movie_id == movie_id
+        )
+        result = await self.db.execute(stmt)
+        existing = result.scalar_one_or_none()
+
+        # 2. Delete the reaction
+        if existing:
+            await self.db.delete(existing)
+
+    async def get_movie_reaction_counts(
+        self,
+        movie_id: int
+    ) -> Tuple[int, int]:
+        """
+        Get the counts of likes and dislikes for a movie.
+
+        :param movie_id: The movie ID to get the reaction counts for.
+        :return: A tuple containing the like count and dislike count.
+        """
+        # SELECT
+        #     SUM(CASE WHEN movie_likes.is_like = TRUE THEN 1 ELSE 0 END) AS sum_1,
+        #     SUM(CASE WHEN movie_likes.is_like = FALSE THEN 1 ELSE 0 END) AS sum_2
+        # FROM movie_likes
+        # WHERE movie_likes.movie_id = <movie_id>;
+        stmt = (
+            select(
+                # counts rows matching a condition
+                func.sum(case((MovieLike.is_like == True, 1), else_=0)),  # number of likes
+                func.sum(case((MovieLike.is_like == False, 1), else_=0)),  # number of dislikes
+            )
+            .where(MovieLike.movie_id == movie_id)
+        )
+        result = await self.db.execute(stmt)
+        likes, dislikes = result.one()  # always returns exactly one row - SUM() always returns a row
+
+        return int(likes or 0), int(dislikes or 0)
+
+    async def get_user_movie_reaction(
+        self,
+        user_id: int,
+        movie_id: int
+    ) -> bool | None:
+        """
+        Get the reaction of a user to a movie.
+
+        :param user_id: The user ID who reacted to the movie
+        :param movie_id: The movie ID which the user reacted to
+        :return: Whether the user liked the movie (True),
+            disliked the movie (False), or did not react to the movie (None)
+        """
+        stmt = select(MovieLike.is_like).where(
+            MovieLike.user_id == user_id,
+            MovieLike.movie_id == movie_id
+        )
+        result = await self.db.execute(stmt)
+        value = result.scalar_one_or_none()
+
+        return value  # True, False, or None
