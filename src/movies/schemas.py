@@ -2,31 +2,28 @@ from decimal import Decimal
 from typing import List, Optional
 import uuid
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
-class CertificationSchema(BaseModel):
+class BaseSchema(BaseModel):
+    # initialize a model from a database object instead of just a dictionary
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CertificationSchema(BaseSchema):
     name: str
 
-    model_config = {"from_attributes": True}
 
-
-class GenreSchema(BaseModel):
+class GenreSchema(BaseSchema):
     name: str
 
-    model_config = {"from_attributes": True}
 
-
-class StarSchema(BaseModel):
+class StarSchema(BaseSchema):
     name: str
 
-    model_config = {"from_attributes": True}
 
-
-class DirectorSchema(BaseModel):
+class DirectorSchema(BaseSchema):
     name: str
-
-    model_config = {"from_attributes": True}
 
 
 class MovieBaseSchema(BaseModel):
@@ -41,17 +38,13 @@ class MovieBaseSchema(BaseModel):
     gross: Optional[Decimal] = Field(None, decimal_places=2)
     price: Optional[Decimal] = Field(Decimal("0.00"), decimal_places=2)
 
-    model_config = {"from_attributes": True}
 
-
-class MovieListItemSchema(BaseModel):
+class MovieListItemSchema(BaseSchema):
     id: int
     name: str
     year: int
     imdb: float
     description: str
-
-    model_config = {"from_attributes": True}
 
 
 class MovieDetailSchema(MovieBaseSchema):
@@ -62,7 +55,7 @@ class MovieDetailSchema(MovieBaseSchema):
     stars: List[StarSchema]
     directors: List[DirectorSchema]
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MovieCreateSchema(MovieBaseSchema):
@@ -97,16 +90,11 @@ class MovieUpdateSchema(BaseModel):
     gross: Optional[Decimal] = Field(None, decimal_places=2)
     price: Optional[Decimal] = Field(None, decimal_places=2)
 
-    model_config = {"from_attributes": True}
 
-
-class GenreWithCountSchema(BaseModel):
+class GenreWithCountSchema(BaseSchema):
     id: int
     name: str
     movie_count: int
-
-    class Config:
-        from_attributes = True
 
 
 class MovieFilterParams(BaseModel):
@@ -140,3 +128,18 @@ class MovieSortParams(BaseModel):
         pattern="^(asc|desc)$",
         description="Sort order: asc or desc"
     )
+
+
+class MovieReactionSummarySchema(BaseSchema):
+    movie_id: int
+    likes: int
+    dislikes: int
+    user_reaction: str | None  # "like" | "dislike" | None
+
+
+class MovieReactionActionResponseSchema(BaseSchema):
+    movie_id: int
+    action: str  # "like" | "dislike" | "removed"
+    likes: int
+    dislikes: int
+    user_reaction: str | None
