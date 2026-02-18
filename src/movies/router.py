@@ -12,17 +12,21 @@ from movies.schemas import (
     MovieUpdateSchema,
     MovieFilterParams,
     MovieSortParams,
+    MovieReactionActionResponseSchema,
+    MovieReactionSummarySchema
 )
 from movies.exceptions import MovieNotFoundError
 from movies.filters import build_movie_filter_query
 from movies.service import MovieService
+from auth.dependencies import get_current_user
+from auth.models import User
 
 
 router = APIRouter(prefix="/movies", tags=["movies"])
 
 
 @router.get(
-    "/",
+    "",
     response_model=Page[MovieListItemSchema],
     summary="List Movies",
     status_code=status.HTTP_200_OK
@@ -37,7 +41,7 @@ async def list_movies(
 
 
 @router.get(
-    "/{movie_id}/",
+    "/{movie_id}",
     response_model=MovieDetailSchema,
     summary="Get Movie",
     status_code=status.HTTP_200_OK
@@ -56,7 +60,7 @@ async def get_movie(
 
 
 @router.post(
-    "/",
+    "",
     response_model=MovieDetailSchema,
     summary="Create Movie",
     status_code=status.HTTP_201_CREATED)
@@ -68,7 +72,7 @@ async def create_movie(
 
 
 @router.patch(
-    "/{movie_id}/",
+    "/{movie_id}",
     summary="Update Movie",
     response_model=MovieDetailSchema,
     status_code=status.HTTP_200_OK
@@ -88,7 +92,7 @@ async def update_movie(
 
 
 @router.delete(
-    "/{movie_id}/",
+    "/{movie_id}",
     summary="Delete Movie",
     status_code=status.HTTP_204_NO_CONTENT
 )
@@ -103,3 +107,63 @@ async def delete_movie(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
         )
+
+
+@router.post(
+    "/{movie_id}/like",
+    response_model=MovieReactionActionResponseSchema,
+    summary="Like a movie",
+    status_code=status.HTTP_200_OK,
+)
+async def like_movie(
+    movie_id: int,
+    service: Annotated[MovieService, Depends(get_movie_service)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> MovieReactionActionResponseSchema:
+    return await service.like_movie(user_id=user.id, movie_id=movie_id)
+
+
+@router.post(
+    "/{movie_id}/dislike",
+    response_model=MovieReactionActionResponseSchema,
+    summary="Dislike a movie",
+    status_code=status.HTTP_200_OK,
+)
+async def dislike_movie(
+    movie_id: int,
+    service: Annotated[MovieService, Depends(get_movie_service)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> MovieReactionActionResponseSchema:
+    return await service.dislike_movie(user_id=user.id, movie_id=movie_id)
+
+
+@router.delete(
+    "/{movie_id}/reaction-remove",
+    response_model=MovieReactionActionResponseSchema,
+    summary="Remove like/dislike from a movie",
+    status_code=status.HTTP_200_OK,
+)
+async def remove_movie_reaction(
+    movie_id: int,
+    service: Annotated[MovieService, Depends(get_movie_service)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> MovieReactionActionResponseSchema:
+    return await service.remove_movie_reaction(
+        user_id=user.id, movie_id=movie_id
+    )
+
+
+@router.get(
+    "/{movie_id}/reactions",
+    response_model=MovieReactionSummarySchema,
+    summary="Get movie reactions summary",
+    status_code=status.HTTP_200_OK
+)
+async def get_movie_reactions(
+    movie_id: int,
+    service: Annotated[MovieService, Depends(get_movie_service)],
+    user: Annotated[User, Depends(get_current_user)],
+):
+    return await service.get_movie_reactions(
+        user_id=user.id, movie_id=movie_id
+    )
