@@ -77,6 +77,23 @@ services:
     networks:
       - fastapi_network
 
+  mailhog:
+    restart: always
+    build:
+      context: .
+      dockerfile: ./docker/mailhog/Dockerfile
+    container_name: cinema-mailhog
+    command: ["/bin/bash", "-c", "/commands/setup_mailhog_auth.sh && /go/bin/MailHog"]
+    ports:
+      - "8025:8025"  # listen for Web UI
+      - "1025:1025"  # listen for plain SMTP (no TLS)
+    env_file:
+      - .env
+    environment:
+      MH_AUTH_FILE: /mailhog.auth
+    networks:
+      - fastapi_network
+
   minio:
     image: minio/minio:latest
     container_name: cinema-minio

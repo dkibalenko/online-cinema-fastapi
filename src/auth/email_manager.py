@@ -76,6 +76,7 @@ class EmailSender(EmailSenderInterface):
             log.info(f"Connected to SMTP server {self._hostname}:{self._port}")
 
             log.debug(f"Authenticating as {self._username}")
+            # MailHog(plain SMTP) ignores this, no error
             await smtp.login(self._username, self._password)  # SMTP_USERNAME, SMTP_PASSWORD
 
             log.info(f"Sending email to {recipient}")

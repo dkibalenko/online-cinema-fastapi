@@ -37,6 +37,7 @@ class BaseAppSettings(BaseSettings):
     SMTP_USERNAME: str
     SMTP_PASSWORD: str
     SMTP_USE_TLS: bool
+    MAILHOG_API_PORT: int
 
     S3_STORAGE_HOST: str
     S3_STORAGE_PORT: int
