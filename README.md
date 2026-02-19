@@ -445,3 +445,116 @@ This ensures:
 - Migrations run automatically on container startup
 - No autogeneration happens inside Docker. Docker should only apply migrations, never create them.
 - Database schema is always up‑to‑date
+
+## 📧 MailHog Integration (Local Email Testing)
+The project includes full integration with MailHog, a lightweight SMTP testing server used during development. MailHog captures outgoing emails (activation, password reset, notifications) without sending them to real inboxes. This allows safe, repeatable testing of all email‑related features.
+
+### 🔌 How MailHog Works
+MailHog provides two separate interfaces:
+
+#### 1. SMTP Server (Port 1025)
+Used by the FastAPI backend to send emails.
+- Accepts plain SMTP only
+- Does not support STARTTLS
+- Does not support SMTP AUTH
+- Always accepts connections without authentication
+
+#### 2. Web UI (Port 8025)
+Used by developers to view captured emails.
+- Can be protected with HTTP Basic Auth
+- Authentication is configured via `MAILHOG_USER` and `MAILHOG_PASSWORD`
+
+These two interfaces are completely independent.
+
+### 🧩 MailHog Authentication Explained
+MailHog supports only HTTP UI authentication, not SMTP authentication.
+
+#### ✔ HTTP UI Authentication
+Configured via:
+```
+MAILHOG_USER=admin
+MAILHOG_PASSWORD=some_password
+```
+A startup script generates `/mailhog.auth`:
+```
+echo "$MAILHOG_USER:$HASHED_PASSWORD" > /mailhog.auth
+```
+Docker passes this file to MailHog:
+```yml
+environment:
+  MH_AUTH_FILE: /mailhog.auth
+```
+This protects the Web UI at:
+```
+http://localhost:8025
+```
+
+#### ❌ SMTP Authentication
+MailHog does not support:
+- AUTH LOGIN
+- AUTH PLAIN
+- SMTP username/password
+- TLS or STARTTLS
+
+Any attempt to use TLS or SMTP auth will fail.
+
+### ⚙️ FastAPI Email Configuration
+The backend loads SMTP settings from `.env`:
+```
+SMTP_SERVER=cinema-mailhog
+SMTP_PORT=1025
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_USE_TLS=false
+```
+These values are injected into the `EmailSender` class:
+```python
+smtp = aiosmtplib.SMTP(
+    hostname=self._hostname,
+    port=self._port,
+    start_tls=self._use_tls
+)
+```
+#### For MailHog:
+- `SMTP_USE_TLS` must be false
+- `SMTP_USERNAME` and `SMTP_PASSWORD` must be empty strings
+- TLS and authentication are automatically skipped
+
+This allows the `EmailSender` to work with both:
+- MailHog (local development)
+- Real SMTP providers (production)
+
+without any code changes.
+
+### 🚀 Running MailHog
+MailHog is included in `docker-compose.yml`:
+```yml
+mailhog:
+  build:
+    context: .
+    dockerfile: ./docker/mailhog/Dockerfile
+  command: ["/bin/bash", "-c", "/commands/setup_mailhog_auth.sh && /go/bin/MailHog"]
+  ports:
+    - "8025:8025"
+    - "1025:1025"
+  env_file:
+    - .env
+  environment:
+    MH_AUTH_FILE: /mailhog.auth
+```
+#### Access the Web UI
+```
+http://localhost:8025
+```
+#### Log in using:
+```
+MAILHOG_USER / MAILHOG_PASSWORD
+```
+
+### 🧪 Testing Email Delivery
+- Register a new user or trigger a password reset
+- Open MailHog UI
+- View captured emails under the “Inbox” tab
+- Inspect HTML templates, links, and formatting
+
+No real emails are sent.
