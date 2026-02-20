@@ -156,6 +156,7 @@ class Movie(Base):
         nullable=False
     )
     certification: Mapped["Certification"] = relationship(
+        "Certification",
         back_populates="movies"
     )
     genres: Mapped[list["Genre"]] = relationship(
@@ -175,7 +176,8 @@ class Movie(Base):
     )
     likes: Mapped[list["MovieLike"]] = relationship(
         "MovieLike",
-        back_populates="movie"
+        back_populates="movie",
+        cascade="all, delete-orphan"
     )
 
     @classmethod
@@ -197,11 +199,11 @@ class MovieLike(Base):
     )
 
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),  # user is deleted → all their likes are deleted
         primary_key=True
     )
     movie_id: Mapped[int] = mapped_column(
-        ForeignKey("movies.id", ondelete="CASCADE"),
+        ForeignKey("movies.id", ondelete="CASCADE"),  # movie is deleted → all likes for that movie are deleted
         primary_key=True
     )
     is_like: Mapped[bool] = mapped_column(Boolean, nullable=False)

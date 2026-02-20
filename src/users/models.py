@@ -74,6 +74,23 @@ class User(Base):
         "UserGroup",
         back_populates="users"
     )
+    activation_token: Mapped[Optional["ActivationToken"]] = relationship(
+        "ActivationToken",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    password_reset_token: Mapped[
+        Optional["PasswordResetToken"]
+    ] = relationship(
+        "PasswordResetToken",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        "RefreshToken",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
     profile: Mapped[Optional["UserProfile"]] = relationship(
         "UserProfile",
         back_populates="user",
@@ -81,7 +98,8 @@ class User(Base):
     )
     movie_likes: Mapped[list["MovieLike"]] = relationship(
         "MovieLike",
-        back_populates="user"
+        back_populates="user",
+        cascade="all, delete-orphan"  # ORM cascade ensures removing a like from the relationship deletes it from DB
     )
 
 
