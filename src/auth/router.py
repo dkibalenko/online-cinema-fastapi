@@ -6,7 +6,7 @@ from rate_limiting import limiter
 from config import BaseAppSettings, get_settings
 from auth.dependencies import get_auth_service, get_current_user
 from auth.service import AuthService
-from auth.models import User
+from users.models import User
 from auth.schemas import (
     MessageResponseSchema,
     UserActivationRequestSchema,

@@ -19,7 +19,7 @@ from movies.exceptions import MovieNotFoundError
 from movies.filters import build_movie_filter_query
 from movies.service import MovieService
 from auth.dependencies import get_current_user
-from auth.models import User
+from users.models import User
 
 
 router = APIRouter(prefix="/movies", tags=["movies"])
