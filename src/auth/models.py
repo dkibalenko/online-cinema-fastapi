@@ -1,6 +1,7 @@
+from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import (
     String,
     DateTime,
@@ -10,7 +11,6 @@ from sqlalchemy import (
 
 from database import Base
 from auth.utils import generate_secure_token
-from users.models import User
 
 
 class TokenBaseModel(Base):
@@ -42,14 +42,11 @@ class ActivationToken(TokenBaseModel):
     __tablename__ = "activation_tokens"
     __table_args__ = (UniqueConstraint("user_id"),)
 
-    user: Mapped[User] = relationship(
+    user: Mapped["User"] = relationship(
         "User",
-        backref=backref(
-            "activation_token",
-            uselist=False,  # user.activation_token returns an object, not a list
-        )
+        back_populates="activation_token",
+        uselist=False,  # user.activation_token returns an object, not a list
     )
-
 
     def __repr__(self):
         return (
@@ -62,14 +59,11 @@ class PasswordResetToken(TokenBaseModel):
     __tablename__ = "password_reset_tokens"
     __table_args__ = (UniqueConstraint("user_id"),)
 
-    user: Mapped[User] = relationship(
+    user: Mapped["User"] = relationship(
         "User",
-        backref=backref(
-            "password_reset_token",
-            uselist=False,
-        )
+        back_populates="password_reset_token",
+        uselist=False
     )
-
 
     def __repr__(self):
         return (
@@ -83,7 +77,7 @@ class RefreshToken(TokenBaseModel):
 
     user: Mapped["User"] = relationship(
         "User",
-        backref=backref("refresh_tokens")
+        back_populates="refresh_tokens",
     )
 
     @classmethod
