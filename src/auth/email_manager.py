@@ -35,7 +35,7 @@ class EmailSender(EmailSenderInterface):
         self._use_tls = use_tls
 
         # Sender address defaults to username
-        self._from_email = from_email or username
+        self._from_email = from_email or username or "noreply@cinema.local"
 
         self._activation_email_template_name = activation_email_template_name
         self._activation_complete_email_template_name = (
