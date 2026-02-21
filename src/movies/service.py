@@ -1,10 +1,13 @@
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
+from fastapi_pagination.ext.sqlalchemy import paginate
+from fastapi_pagination import Page
 
 from logger_config import get_logger
 
 from movies.repository import MovieRepository
 from movies.utils import get_or_create_related
+from movies.filters import build_movie_filter_query
 from movies.models import Movie, Genre, Star, Director, Certification
 from movies.schemas import (
     MovieCreateSchema,
@@ -14,6 +17,10 @@ from movies.schemas import (
     MovieReactionActionResponseSchema,
     MovieRatingCreateSchema,
     MovieRatingSummarySchema,
+    FavoriteMovieResponseSchema,
+    FavoriteMovieListSchema,
+    MovieFilterParams,
+    MovieSortParams
 )
 
 log = get_logger()
@@ -472,6 +479,13 @@ class MovieService:
         user_id: int,
         movie_id: int
     ) -> MovieRatingSummarySchema:
+        """
+        Get movie rating summary.
+
+        :param user_id: The ID of the user.
+        :param movie_id: The ID of the movie.
+        :return: A MovieRatingSummarySchema object.
+        """
         log.info(
             f"Get movie rating summary | user_id={user_id} movie_id={movie_id}"
         )
@@ -496,3 +510,81 @@ class MovieService:
             ratings_count=count,
             user_rating=user_rating
         )
+
+    async def add_to_favorites(
+        self,
+        user_id: int,
+        movie_id: int
+    ) -> FavoriteMovieResponseSchema:
+        """
+        Add a movie to user's favorites.
+
+        :param user_id: The ID of the user.
+        :param movie_id: The ID of the movie to be added.
+        :return: A FavoriteMovieResponseSchema object indicating whether 
+            the movie is in the user's favorites.
+        """
+        log.info(
+            f"Adding movie to favorites | user_id={user_id} "
+            f"movie_id={movie_id}"
+        )
+        movie = await self.repo.get_movie_basic(movie_id)
+        if not movie:
+            log.warning(f"Movie not found for favorite | movie_id={movie_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Movie with ID {movie_id} not found."
+            )
+
+        await self.repo.add_favorite(user_id, movie_id)
+        await self.repo.commit()
+
+        return FavoriteMovieResponseSchema(movie_id=movie_id, is_favorite=True)
+
+    async def remove_from_favorites(
+        self,
+        user_id: int,
+        movie_id: int
+    ) -> FavoriteMovieResponseSchema:
+        """
+        Remove a movie from user's favorites.
+
+        :param user_id: The ID of the user.
+        :param movie_id: The ID of the movie to be removed.
+        :return: A FavoriteMovieResponseSchema object indicating whether
+            the movie is in the user's favorites.
+        """
+        log.info(
+            f"Removing movie from favorites | user_id={user_id} "
+            f"movie_id={movie_id}"
+        )
+        movie = await self.repo.get_movie_basic(movie_id)
+        if not movie:
+            log.warning(f"Movie not found for favorite | movie_id={movie_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Movie with ID {movie_id} not found."
+            )
+
+        await self.repo.remove_favorite(user_id, movie_id)
+        await self.repo.commit()
+
+        return FavoriteMovieResponseSchema(
+            movie_id=movie_id, is_favorite=False
+        )
+
+    async def list_favorites(
+        self,
+        user_id: int,
+        filter_query: MovieFilterParams,
+        sort_query: MovieSortParams,
+    ):
+        base_query = await self.repo.get_favorites_query(user_id)
+
+        filtered_query = build_movie_filter_query(
+            filter_query=filter_query,
+            sort_query=sort_query,
+            base_query=base_query
+        )
+
+        return await paginate(self.repo.db, filtered_query)
