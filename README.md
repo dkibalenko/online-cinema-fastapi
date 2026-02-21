@@ -450,6 +450,143 @@ Examples:
 
 This ensures consistent, predictable API responses.
 
+### Integration with the Movie and User Domains
+Ratings are exposed through the `Movie` model:
+```python
+# Movie model
+ratings = relationship(
+    "MovieRating",
+    back_populates="movie",
+    cascade="all, delete-orphan"
+)
+
+# User model
+movie_ratings = relationship(
+    "MovieRating",
+    back_populates="user",
+    cascade="all, delete-orphan"
+)
+```
+This allows:
+- automatic cleanup when movies are deleted
+- easy access to rating data in higher‑level services
+- clean domain modeling aligned with likes, genres, stars, and directors
+
+---
+
+## ⭐ Movie Favorites
+The API includes a complete Favorites system that allows authenticated users to save movies to their personal favorites list and browse them using the full catalog functionality. Favorites behave like a personalized movie collection with support for search, filtering, sorting, and pagination.
+
+### Feature Overview
+- Add any movie to the user’s favorites
+- Remove movies from favorites
+- List all favorite movies with:
+- search
+- genre filtering
+- year filtering
+- IMDb filtering
+- price filtering
+- sorting (id, name, year, IMDb, votes, price)
+- pagination
+- Favorites list behaves exactly like the main movie catalog, but scoped to the user
+- Favorites are stored efficiently using a composite primary key
+- Cascade rules ensure favorites are removed automatically if a user or movie is deleted
+
+This feature integrates seamlessly with the existing movie domain and user authentication system.
+
+### Database Design
+Favorites are stored in the `favorite_movies` table:
+
+| Column       | Type           | Notes                |
+| ------------ | -------------- | -------------------- |
+| `user_id`    | FK → users.id  | Part of composite PK |
+| `movie_id`   | FK → movies.id | Part of composite PK |
+| `created_at` | Timestamp      | Auto‑generated       |
+
+#### Why a composite primary key
+The combination of `(user_id, movie_id)` uniquely identifies a favorite entry.
+This design:
+- enforces “one favorite per user per movie” at the database level
+- avoids unnecessary surrogate IDs
+- improves lookup performance
+- simplifies the domain model
+
+Both foreign keys use `ondelete="CASCADE"`, ensuring favorites are automatically removed if a user or movie is deleted.
+
+### API Endpoints
+#### Add to Favorites
+`POST /movies/{movie_id}/favorite`
+```json
+{
+  "movie_id": 102,
+  "is_favorite": true
+}
+```
+
+#### Remove from Favorites
+`DELETE /movies/{movie_id}/favorite`
+```json
+{
+  "movie_id": 102,
+  "is_favorite": false
+}
+```
+
+### List Favorite Movies
+`GET /movies/favorites`
+
+Supports all catalog parameters:
+```
+/movies/favorites?genre_id=3&search=action&sort_by=imdb&order=desc&page=1&size=20
+```
+Response (FastAPI Pagination):
+```json
+{
+  "items": [
+    {
+      "id": 102,
+      "name": "Inception",
+      "year": 2010,
+      "imdb": 8.8,
+      "description": "...",
+      "is_favorite": true
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "size": 20
+}
+```
+
+### How Favorites Integrate with Filtering & Sorting
+The favorites list uses the same filtering and sorting logic as the main movie catalog.
+This is achieved by:
+
+- Building a base query that selects only the user’s favorite movies:
+```python
+select(Movie)
+    .join(FavoriteMovie)
+    .where(FavoriteMovie.user_id == user_id)
+```
+- Passing this base query into the shared `build_movie_filter_query()` function.
+- Applying search, genre filters, year filters, IMDb filters, price filters, and sorting on top of the favorites query.
+
+This keeps the architecture clean, modular, and consistent.
+
+### Integration with the Movie Domain
+Favorites are exposed through the `Movie` and `User` models:
+```python
+favorites = relationship(
+    "FavoriteMovie",
+    back_populates="movie",
+    cascade="all, delete-orphan"
+)
+```
+This allows:
+- automatic cleanup when movies or users are deleted
+- easy access to favorites in higher‑level services
+- consistent domain modeling alongside likes and ratings
+
 ---
 
 ## ⭐ Database Migrations (Local + Docker)
