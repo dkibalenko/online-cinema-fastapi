@@ -1,8 +1,13 @@
 # Online Cinema
 
+This project is an actively developed, production‑grade RESTful API built with FastAPI, SQLAlchemy 2.0, Celery, Redis, PostgreSQL, and MinIO.  
+It already includes a complete authentication system, user management, movie catalog with genres/stars/directors, likes, ratings, email workflows, and a fully containerized multi‑service architecture.
+
+I continue expanding the system daily — CI/CD, deployment, and automated test coverage are next on the roadmap. The goal is to demonstrate real backend engineering practices, not just CRUD endpoints.
+
 An online cinema is a digital platform that allows users to select, watch, and purchase access to movies and other video materials via the internet.
 
-## 🔐 Authentication & User Management
+## ⭐ Authentication & User Management
 
 The project uses a clean domain‑based architecture with separate apps:
 
@@ -11,7 +16,7 @@ The project uses a clean domain‑based architecture with separate apps:
 
 This separation keeps the codebase maintainable and avoids circular imports.
 
-### 📁 Directory Structure
+### Directory Structure
 ```
 src/
   __init__.py
@@ -33,7 +38,7 @@ src/
     validators.py
     utils.py
 ```
-### 🔐 Auth App
+### ⭐ Auth App
 The auth app handles:
 - User registration
 - Email activation
@@ -67,7 +72,7 @@ The project uses:
 
 `get_current_user` decodes the access token and loads the user from the database.
 
-### 👤 Users App
+### ⭐ Users App
 The users app manages:
 - User entity
 - User groups (RBAC)
@@ -114,11 +119,11 @@ Returns:
 
 ---
 
-## Movies App
+## ⭐ Movies App
 
 The Movie Domain provides the foundational data structures and operations for managing movies within the Online Cinema platform. It defines how movies are stored, queried, filtered, and related to other entities such as genres, directors, stars, and certifications. All higher‑level features (likes, ratings, favorites, comments, purchases, moderation) build on top of this core domain.
 
-### 📌 Overview
+### Overview
 A Movie represents a film available in the platform’s catalog.
 Each movie includes:
 - Basic metadata (name, year, duration)
@@ -134,7 +139,7 @@ The domain is designed for:
 - Clean separation of concerns
 - Extensibility for future social and commerce features
 
-### 📁 Directory Structure:
+### Directory Structure:
 ```
 movies/
 │
@@ -149,7 +154,7 @@ movies/
 └── models.py
 ```
 
-### 🧩 Data Model
+### Data Model
 Table: `movies`
 | Column             | Type                            | Description                                      |
 | ------------------ | ------------------------------- | ------------------------------------------------ |
@@ -195,7 +200,7 @@ One‑to‑many relationship.
 ```python
 certification: Certification
 ```
-### 🏗 Architecture
+### Architecture
 The Movie Domain follows the project’s layered architecture:
 
 #### 1. Router Layer
@@ -223,10 +228,10 @@ Handles database operations:
 #### 4. Database Layer
 Stores movies and all related entities with strict referential integrity.
 
-### 🔍 Catalog Features
+### Catalog Features
 The Movie Domain supports a flexible catalog system with:
 
-#### ✔ Filtering
+#### Filtering
 - By genre
 - By year
 - By certification
@@ -235,7 +240,7 @@ The Movie Domain supports a flexible catalog system with:
 - By price range
 - By IMDb rating
 
-#### ✔ Sorting
+#### Sorting
 - By newest
 - By oldest
 - By IMDb rating
@@ -243,17 +248,17 @@ The Movie Domain supports a flexible catalog system with:
 - By price
 - By popularity (votes)
 
-#### ✔ Searching
+#### Searching
 - Full‑text search by movie name
 - Case‑insensitive matching
 
-✔ Pagination
+#### Pagination
 - Efficient offset/limit pagination
 - Consistent ordering via `default_order_by()`
 
-### 🧪 Testing
+### Testing
 
-### 🎯 Design Goals
+### Design Goals
 - Clean domain boundaries  
   - No cross‑imports between unrelated modules.
 - Extensibility  
@@ -263,10 +268,10 @@ The Movie Domain supports a flexible catalog system with:
 - Consistency  
   - All movie data is validated and normalized before persistence.
 
-## 🎬 Movie Likes Feature
+## ⭐ Movie Likes Feature
 The Movie Likes subsystem enables authenticated users to express positive or negative reactions to movies. It is designed to be lightweight, scalable, and fully aligned with the project’s layered architecture (Router → Service → Repository → Database). The feature supports liking, disliking, removing reactions, and retrieving aggregated reaction statistics for each movie.
 
-### 📌 Overview
+### Overview
 Users can:
 - Like a movie
 - Dislike a movie
@@ -275,7 +280,7 @@ Users can:
 
 Each user may have **only one reaction per movie**, enforced by a **composite primary key and a unique constraint**.
 
-### 🧩 Data Model
+### Data Model
 The `MovieLike` model represents a user’s reaction to a movie.
 
 Table: `movie_likes`
@@ -308,7 +313,7 @@ movie.likes: list["MovieLike"]
 
 These relationships are defined using string‑based references to avoid circular imports and maintain clean domain boundaries.
 
-### 🏗 Architecture
+### Architecture
 The feature follows the project’s layered structure:
 
 #### 1. Router Layer
@@ -338,14 +343,14 @@ Handles database operations:
 4. Database Layer
 Stores reactions in the `movie_likes` table with strict referential integrity.
 
-### 🔐 Authentication
+### Authentication
 All reaction endpoints require a valid Bearer access token.
 The authenticated user is resolved via:
 ```python
 user: Annotated[User, Depends(get_current_user)]
 ```
 
-### 🎯 Design Goals
+### Design Goals
 - Idempotent operations  
   - Repeated likes/dislikes do not create duplicates.
 - Efficient aggregation  
@@ -357,7 +362,97 @@ user: Annotated[User, Depends(get_current_user)]
 
 ---
 
-## Database Migrations (Local + Docker)
+## ⭐ Movie Ratings (1–10 Scale)
+The API includes a complete movie rating system that allows authenticated users to rate any movie on a 1–10 scale. Each user can rate a movie only once, and updating a rating simply overwrites the previous value. Ratings are stored efficiently using a composite primary key and exposed through clean, predictable endpoints.
+
+### Feature Overview
+Users can rate any movie with an integer value from 1 to 10
+- Each user can have only one rating per movie
+- Updating a rating overwrites the previous one
+- Deleting a rating removes it entirely
+- Rating summaries include:
+  - average rating
+  - total number of ratings
+  - the current user’s rating
+
+This feature integrates seamlessly with the existing movie domain and user authentication system.
+
+### Database Design
+
+Ratings are stored in the `movie_ratings` table:
+
+| Column       | Type           | Notes                |
+| ------------ | -------------- | -------------------- |
+| `user_id`    | FK → `users.id`  | Part of composite PK |
+| `movie_id`   | FK → `movies.id` | Part of composite PK |
+| `rating`     | Integer (1–10) | Required             |
+| `created_at` | Timestamp      | Auto‑generated       |
+
+#### Why a composite primary key
+The combination of `(user_id, movie_id)` **uniquely identifies a rating**.
+This design:
+- enforces the “**one rating per user per movie**” rule at the database level
+- avoids unnecessary surrogate IDs
+- **improves lookup performance**
+- simplifies the domain model
+
+Both foreign keys use `ondelete="CASCADE"`, ensuring that ratings are automatically removed if a user or movie is deleted.
+
+### Rating Summary Logic
+The API computes rating summaries using efficient SQL aggregation:
+- `AVG(rating)` → average rating for the movie
+- `COUNT(rating)` → total number of ratings
+- user-specific query → the current user’s rating
+
+If no ratings exist, the API returns:
+```json
+{
+  "average_rating": null,
+  "ratings_count": 0,
+  "user_rating": null
+}
+```
+### API Endpoints
+#### Rate a Movie
+`POST /movies/{movie_id}/rating`
+```json
+{
+  "rating": 8
+}
+```
+Response:
+```json
+{
+  "movie_id": 102,
+  "average_rating": 8.0,
+  "ratings_count": 1,
+  "user_rating": 8
+}
+```
+
+#### Get Rating Summary
+`GET /movies/{movie_id}/rating`
+
+Returns the aggregated rating data for the movie.
+
+#### Delete Rating
+`DELETE /movies/{movie_id}/rating`
+
+Removes the user’s rating and returns the updated summary.
+
+### Error Handling
+The system uses domain‑level exceptions with FastAPI exception handlers.
+
+Examples:
+- `404 Not Found` — movie does not exist
+- `422 Unprocessable` Entity — rating outside 1–10
+- `401 Unauthorized` — missing or invalid token
+
+This ensures consistent, predictable API responses.
+
+---
+
+## ⭐ Database Migrations (Local + Docker)
 This project uses Alembic for SQLAlchemy schema migrations.
 Migrations are generated locally and applied inside Docker using a dedicated migrator service.
 
@@ -446,10 +541,10 @@ This ensures:
 - No autogeneration happens inside Docker. Docker should only apply migrations, never create them.
 - Database schema is always up‑to‑date
 
-## 📧 MailHog Integration (Local Email Testing)
+## ⭐ MailHog Integration (Local Email Testing)
 The project includes full integration with MailHog, a lightweight SMTP testing server used during development. MailHog captures outgoing emails (activation, password reset, notifications) without sending them to real inboxes. This allows safe, repeatable testing of all email‑related features.
 
-### 🔌 How MailHog Works
+### How MailHog Works
 MailHog provides two separate interfaces:
 
 #### 1. SMTP Server (Port 1025)
@@ -466,10 +561,10 @@ Used by developers to view captured emails.
 
 These two interfaces are completely independent.
 
-### 🧩 MailHog Authentication Explained
+### MailHog Authentication Explained
 MailHog supports only HTTP UI authentication, not SMTP authentication.
 
-#### ✔ HTTP UI Authentication
+#### HTTP UI Authentication
 Configured via:
 ```
 MAILHOG_USER=admin
@@ -526,7 +621,7 @@ This allows the `EmailSender` to work with both:
 
 without any code changes.
 
-### 🚀 Running MailHog
+### Running MailHog
 MailHog is included in `docker-compose.yml`:
 ```yml
 mailhog:
@@ -551,7 +646,7 @@ http://localhost:8025
 MAILHOG_USER / MAILHOG_PASSWORD
 ```
 
-### 🧪 Testing Email Delivery
+### Testing Email Delivery
 - Register a new user or trigger a password reset
 - Open MailHog UI
 - View captured emails under the “Inbox” tab

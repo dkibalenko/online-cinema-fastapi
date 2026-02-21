@@ -13,7 +13,9 @@ from movies.schemas import (
     MovieFilterParams,
     MovieSortParams,
     MovieReactionActionResponseSchema,
-    MovieReactionSummarySchema
+    MovieReactionSummarySchema,
+    MovieRatingCreateSchema,
+    MovieRatingSummarySchema,
 )
 from movies.exceptions import MovieNotFoundError
 from movies.filters import build_movie_filter_query
@@ -166,4 +168,57 @@ async def get_movie_reactions(
 ):
     return await service.get_movie_reactions(
         user_id=user.id, movie_id=movie_id
+    )
+
+
+@router.post(
+    "/{movie_id}/rating",
+    response_model=MovieRatingSummarySchema,
+    summary="Rate a movie on a 1-10 scale",
+    status_code=status.HTTP_200_OK
+)
+async def rate_movie(
+    movie_id: int,
+    payload: MovieRatingCreateSchema,
+    service: Annotated[MovieService, Depends(get_movie_service)],
+    user: Annotated[User, Depends(get_current_user)],
+):
+    return await service.rate_movie(
+        user_id=user.id,
+        movie_id=movie_id,
+        payload=payload
+    )
+
+
+@router.delete(
+    "/{movie_id}/rating",
+    response_model=MovieRatingSummarySchema,
+    summary="Remove user rating for a movie",
+    status_code=status.HTTP_200_OK
+)
+async def delete_movie_rating(
+    movie_id: int,
+    service: Annotated[MovieService, Depends(get_movie_service)],
+    user: Annotated[User, Depends(get_current_user)],
+):
+    return await service.delete_movie_rating(
+        user_id=user.id,
+        movie_id=movie_id
+    )
+
+
+@router.get(
+    "/{movie_id}/rating",
+    response_model=MovieRatingSummarySchema,
+    summary="Get rating summary for a movie",
+    status_code=status.HTTP_200_OK
+)
+async def get_movie_rating_summary(
+    movie_id: int,
+    service: Annotated[MovieService, Depends(get_movie_service)],
+    user: Annotated[User, Depends(get_current_user)],
+):
+    return await service.get_movie_rating_summary(
+        user_id=user.id,
+        movie_id=movie_id
     )

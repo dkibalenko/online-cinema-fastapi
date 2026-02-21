@@ -6,7 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.engine import Row
 
-from movies.models import Movie, Genre, MoviesGenresModel, MovieLike
+from movies.models import (
+    Movie,
+    Genre,
+    MoviesGenresModel,
+    MovieLike,
+    MovieRating
+)
 
 
 class MovieRepository:
@@ -217,3 +223,105 @@ class MovieRepository:
         value = result.scalar_one_or_none()
 
         return value  # True, False, or None
+
+    async def upsert_movie_rating(
+        self,
+        user_id: int,
+        movie_id: int,
+        rating: int
+    ) -> None:
+        """
+        Upsert a movie rating from a user
+
+        :param user_id: The user ID who rated the movie
+        :param movie_id: The movie ID which the user rated
+        :param rating: The rating given by the user
+
+        :return: None
+        """
+        # 1. Check if the user has already rated the movie
+        stmt = select(MovieRating).where(
+            MovieRating.user_id == user_id,
+            MovieRating.movie_id == movie_id
+        )
+        result = await self.db.execute(stmt)
+        existing = result.scalar_one_or_none()
+
+        # 2. Update or insert the rating
+        if existing:
+            existing.rating = rating
+        else:
+            self.db.add(
+                MovieRating(
+                    user_id=user_id,
+                    movie_id=movie_id,
+                    rating=rating
+                )
+            )
+
+        await self.db.flush()
+
+    async def delete_movie_rating(
+        self,
+        user_id: int,
+        movie_id: int
+    ) -> None:
+        """
+        Delete a movie rating from a user.
+
+        :param user_id: The user ID who rated the movie
+        :param movie_id: The movie ID which the user rated
+        :return: None
+        """
+        stmt = select(MovieRating).where(
+            MovieRating.user_id == user_id,
+            MovieRating.movie_id == movie_id
+        )
+        result = await self.db.execute(stmt)
+        rating = result.scalar_one_or_none()
+
+        if rating:
+            await self.db.delete(rating)
+            await self.db.flush()
+
+    async def get_movie_rating_summary(
+        self,
+        user_id: int,
+        movie_id: int
+    ) -> tuple[float | None, int, int | None]:
+        """
+        Get the summary of movie ratings for a movie.
+
+        :param user_id: The user ID to get the user's rating for.
+        :param movie_id: The movie ID to get the ratings summary for.
+        :return: A tuple containing the average rating, the count of ratings,
+            and the user's rating.
+        """
+        # aggregate
+        # SELECT
+        #     AVG(movie_ratings.rating) AS avg_rating,
+        #     COUNT(movie_ratings.rating) AS count_rating
+        # FROM movie_ratings
+        # WHERE movie_ratings.movie_id = :movie_id;
+        agg_stmt = select(
+            func.avg(MovieRating.rating),  # avg rating
+            func.count(MovieRating.rating)  # rating count
+        ).where(MovieRating.movie_id == movie_id)
+
+        agg_result = await self.db.execute(agg_stmt)
+        avg_rating, count = agg_result.one()
+        avg_rating = float(avg_rating) if avg_rating is not None else None  # AVG() returns NULL if no rows exist
+        count = int(count or 0)  # COUNT() returns 0 if no rows exist
+
+        # user rating
+        # SELECT movie_ratings.rating
+        # FROM movie_ratings
+        # WHERE movie_ratings.user_id = :user_id AND movie_ratings.movie_id = :movie_id; LOOKUP is VERY FAST since user_id/movie_id form a composite PK key
+        user_stmt = select(MovieRating.rating).where(
+            MovieRating.user_id == user_id,
+            MovieRating.movie_id == movie_id
+        )
+        user_result = await self.db.execute(user_stmt)
+        user_rating = user_result.scalar_one_or_none()
+
+        return avg_rating, count, user_rating
