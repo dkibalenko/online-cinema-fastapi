@@ -4,7 +4,6 @@ from sqlalchemy.exc import IntegrityError
 from logger_config import get_logger
 
 from movies.repository import MovieRepository
-from movies.exceptions import MovieNotFoundError
 from movies.utils import get_or_create_related
 from movies.models import Movie, Genre, Star, Director, Certification
 from movies.schemas import (
@@ -13,7 +12,8 @@ from movies.schemas import (
     GenreWithCountSchema,
     MovieReactionSummarySchema,
     MovieReactionActionResponseSchema,
-    
+    MovieRatingCreateSchema,
+    MovieRatingSummarySchema,
 )
 
 log = get_logger()
@@ -32,7 +32,10 @@ class MovieService:
 
         if not movie:
             log.warning(f"Movie not found | movie_id={movie_id}")
-            raise MovieNotFoundError(f"Movie with ID {movie_id} not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Movie with ID {movie_id} not found."
+            )
         return movie
 
     async def create_movie(self, data: MovieCreateSchema) -> Movie:
@@ -118,7 +121,7 @@ class MovieService:
         :param data: The fields to be updated with the new values.
         :return: The updated movie.
 
-        :raises MovieNotFoundError: If the movie is not found.
+        :raises HTTPException: If the movie is not found.
         :raises HTTPException: If no fields are provided for update,
             or if there is an integrity error.
         """
@@ -127,7 +130,10 @@ class MovieService:
 
         if not movie:
             log.warning(f"Movie not found | movie_id={movie_id}")
-            raise MovieNotFoundError(f"Movie with ID {movie_id} not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Movie with ID {movie_id} not found."
+            )
 
         # Extract only the fields sent in the request
         update_data = data.model_dump(exclude_unset=True)
@@ -165,7 +171,7 @@ class MovieService:
         Delete a movie by its ID.
 
         :param movie_id: The ID of the movie to be deleted.
-        :raises MovieNotFoundError: If the movie is not found.
+        :raises HTTPException: If the movie is not found.
         """
         log.info(f"Deleting movie | movie_id={movie_id}")
         movie = await self.repo.db.get(Movie, movie_id)
@@ -174,7 +180,10 @@ class MovieService:
             log.warning(
                 f"Delete failed — movie not found | movie_id={movie_id}"
             )
-            raise MovieNotFoundError(f"Movie with ID {movie_id} not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Movie with ID {movie_id} not found."
+            )
 
         await self.repo.delete(movie)
         await self.repo.commit()
@@ -203,7 +212,10 @@ class MovieService:
 
         if not movie:
             log.warning(f"Movie not found for reaction | movie_id={movie_id}")
-            raise MovieNotFoundError(f"Movie with ID {movie_id} not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Movie with ID {movie_id} not found."
+            )
 
     async def _build_reaction_summary(
         self,
@@ -345,7 +357,10 @@ class MovieService:
         movie = await self.repo.get_movie_basic(movie_id)
         if not movie:
             log.warning(f"Movie not found for reaction | movie_id={movie_id}")
-            raise MovieNotFoundError(f"Movie with ID {movie_id} not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Movie with ID {movie_id} not found."
+            )
 
         likes, dislikes = await self.repo.get_movie_reaction_counts(movie_id)
         user_reaction = await self.repo.get_user_movie_reaction(
@@ -364,4 +379,120 @@ class MovieService:
             likes=likes,
             dislikes=dislikes,
             user_reaction=reaction
+        )
+
+    async def rate_movie(
+        self,
+        user_id: int,
+        movie_id: int,
+        payload: MovieRatingCreateSchema
+    ) -> MovieRatingSummarySchema:
+        """
+        Rate a movie.
+
+        :param user_id: The ID of the user.
+        :param movie_id: The ID of the movie.
+        :param payload: The rating given by the user.
+        :return: A MovieRatingSummarySchema object.
+        """
+        log.info(f"Rate movie | user_id={user_id} movie_id={movie_id}")
+        movie = await self.repo.get_movie_basic(movie_id)
+        if not movie:
+            log.warning(f"Movie not found for rating | movie_id={movie_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Movie with ID {movie_id} not found."
+            )
+
+        await self.repo.upsert_movie_rating(
+            user_id=user_id,
+            movie_id=movie_id,
+            rating=payload.rating
+        )
+
+        await self.repo.commit()
+
+        avg_rating, count, user_rating = (
+            await self.repo.get_movie_rating_summary(
+                user_id=user_id,
+                movie_id=movie_id
+            )
+        )
+
+        return MovieRatingSummarySchema(
+            movie_id=movie_id,
+            average_rating=avg_rating,
+            ratings_count=count,
+            user_rating=user_rating
+        )
+
+    async def delete_movie_rating(
+        self,
+        user_id: int,
+        movie_id: int
+    ) -> MovieRatingSummarySchema:
+        """
+        Delete a movie rating from a user.
+
+        :param user_id: The ID of the user.
+        :param movie_id: The ID of the movie.
+        :return: A MovieRatingSummarySchema object.
+        """
+        log.info(
+            f"Delete movie rating | user_id={user_id} movie_id={movie_id}"
+        )
+        movie = await self.repo.get_movie_basic(movie_id)
+        if not movie:
+            log.warning(f"Movie not found for rating | movie_id={movie_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Movie with ID {movie_id} not found."
+            )
+
+        await self.repo.delete_movie_rating(user_id=user_id, movie_id=movie_id)
+
+        await self.repo.commit()
+
+        avg_rating, count, user_rating = (
+                await self.repo.get_movie_rating_summary(
+                user_id=user_id,
+                movie_id=movie_id
+            )
+        )
+
+        return MovieRatingSummarySchema(
+            movie_id=movie_id,
+            average_rating=avg_rating,
+            ratings_count=count,
+            user_rating=user_rating
+        )
+
+    async def get_movie_rating_summary(
+        self,
+        user_id: int,
+        movie_id: int
+    ) -> MovieRatingSummarySchema:
+        log.info(
+            f"Get movie rating summary | user_id={user_id} movie_id={movie_id}"
+        )
+        movie = await self.repo.get_movie_basic(movie_id)
+        if not movie:
+            log.warning(f"Movie not found for rating | movie_id={movie_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Movie with ID {movie_id} not found."
+            )
+
+        avg_rating, count, user_rating = (
+                await self.repo.get_movie_rating_summary(
+                user_id=user_id,
+                movie_id=movie_id
+            )
+        )
+
+        return MovieRatingSummarySchema(
+            movie_id=movie_id,
+            average_rating=avg_rating,
+            ratings_count=count,
+            user_rating=user_rating
         )
