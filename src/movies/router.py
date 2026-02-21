@@ -16,6 +16,8 @@ from movies.schemas import (
     MovieReactionSummarySchema,
     MovieRatingCreateSchema,
     MovieRatingSummarySchema,
+    FavoriteMovieResponseSchema,
+    FavoriteMovieListSchema
 )
 from movies.exceptions import MovieNotFoundError
 from movies.filters import build_movie_filter_query
@@ -27,6 +29,7 @@ from users.models import User
 router = APIRouter(prefix="/movies", tags=["movies"])
 
 
+# static endpoints must be placed above any {movie_id} routes
 @router.get(
     "",
     response_model=Page[MovieListItemSchema],
@@ -42,6 +45,38 @@ async def list_movies(
     return await paginate(service.repo.db, stmt)
 
 
+@router.post(
+    "",
+    response_model=MovieDetailSchema,
+    summary="Create Movie",
+    status_code=status.HTTP_201_CREATED)
+async def create_movie(
+    data: MovieCreateSchema,
+    service: Annotated[MovieService, Depends(get_movie_service)]
+) -> MovieDetailSchema:
+    return await service.create_movie(data)
+
+
+@router.get(
+    "/favorites",
+    response_model=Page[FavoriteMovieListSchema],
+    summary="List user's favorite movies",
+    status_code=status.HTTP_200_OK
+)
+async def list_favorites(
+    filter_query: Annotated[MovieFilterParams, Depends()],
+    sort_query: Annotated[MovieSortParams, Depends()],
+    service: Annotated[MovieService, Depends(get_movie_service)],
+    user: Annotated[User, Depends(get_current_user)]
+) -> Page[FavoriteMovieListSchema]:
+    return await service.list_favorites(
+        user.id,
+        filter_query,
+        sort_query,
+    )
+
+
+# dynamic endpoints
 @router.get(
     "/{movie_id}",
     response_model=MovieDetailSchema,
@@ -59,18 +94,6 @@ async def get_movie(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
         )
-
-
-@router.post(
-    "",
-    response_model=MovieDetailSchema,
-    summary="Create Movie",
-    status_code=status.HTTP_201_CREATED)
-async def create_movie(
-    data: MovieCreateSchema,
-    service: Annotated[MovieService, Depends(get_movie_service)]
-) -> MovieDetailSchema:
-    return await service.create_movie(data)
 
 
 @router.patch(
@@ -222,3 +245,31 @@ async def get_movie_rating_summary(
         user_id=user.id,
         movie_id=movie_id
     )
+
+
+@router.post(
+    "/{movie_id}/favorite",
+    response_model=FavoriteMovieResponseSchema,
+    summary="Add movie to favorites",
+    status_code=status.HTTP_200_OK
+)
+async def add_to_favorites(
+    movie_id: int,
+    service: Annotated[MovieService, Depends(get_movie_service)],
+    user: Annotated[User, Depends(get_current_user)]
+):
+    return await service.add_to_favorites(user.id, movie_id)
+
+
+@router.delete(
+    "/{movie_id}/favorite",
+    response_model=FavoriteMovieResponseSchema,
+    summary="Remove movie from favorites",
+    status_code=status.HTTP_200_OK
+)
+async def remove_from_favorites(
+    movie_id: int,
+    service: Annotated[MovieService, Depends(get_movie_service)],
+    user: Annotated[User, Depends(get_current_user)]
+):
+    return await service.remove_from_favorites(user.id, movie_id)
