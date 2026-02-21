@@ -1,8 +1,7 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from fastapi_pagination import Page
-from fastapi_pagination.ext.sqlalchemy import paginate
 
 from movies.dependencies import get_movie_service
 from movies.schemas import (
@@ -19,8 +18,6 @@ from movies.schemas import (
     FavoriteMovieResponseSchema,
     FavoriteMovieListSchema
 )
-from movies.exceptions import MovieNotFoundError
-from movies.filters import build_movie_filter_query
 from movies.service import MovieService
 from auth.dependencies import get_current_user
 from users.models import User
@@ -39,10 +36,14 @@ router = APIRouter(prefix="/movies", tags=["movies"])
 async def list_movies(
     filter_query: Annotated[MovieFilterParams, Depends()],
     sort_query: Annotated[MovieSortParams, Depends()],
-    service: Annotated[MovieService, Depends(get_movie_service)]
+    service: Annotated[MovieService, Depends(get_movie_service)],
+    user: Annotated[User, Depends(get_current_user)]
 ) -> Page[MovieListItemSchema]:
-    stmt = build_movie_filter_query(filter_query, sort_query)
-    return await paginate(service.repo.db, stmt)
+    return await service.get_movie_list(
+        user.id,
+        filter_query,
+        sort_query
+    )
 
 
 @router.post(
@@ -85,15 +86,10 @@ async def list_favorites(
 )
 async def get_movie(
     movie_id: int,
-    service: Annotated[MovieService, Depends(get_movie_service)]
+    service: Annotated[MovieService, Depends(get_movie_service)],
+    user: Annotated[User, Depends(get_current_user)]
 ) -> MovieDetailSchema:
-    try:
-        return await service.get_movie_detail(movie_id)
-    except MovieNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+    return await service.get_movie_detail(movie_id, user.id)
 
 
 @router.patch(
@@ -107,13 +103,7 @@ async def update_movie(
     data: MovieUpdateSchema,
     service: Annotated[MovieService, Depends(get_movie_service)]
 ) -> MovieDetailSchema:
-    try:
-        return await service.update_movie(movie_id, data)
-    except MovieNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+    return await service.update_movie(movie_id, data)
 
 
 @router.delete(
@@ -125,14 +115,7 @@ async def delete_movie(
     movie_id: int,
     service: Annotated[MovieService, Depends(get_movie_service)]
 ):
-    try:
-        await service.delete_movie(movie_id)
-    except MovieNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-
+    await service.delete_movie(movie_id)
 
 @router.post(
     "/{movie_id}/like",
