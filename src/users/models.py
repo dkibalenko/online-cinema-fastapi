@@ -101,7 +101,11 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"  # ORM cascade ensures removing a like from the relationship deletes it from DB
     )
-
+    movie_ratings: Mapped[list["MovieRating"]] = relationship(
+        "MovieRating",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return (

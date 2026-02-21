@@ -143,3 +143,14 @@ class MovieReactionActionResponseSchema(BaseSchema):
     likes: int
     dislikes: int
     user_reaction: str | None
+
+
+class MovieRatingCreateSchema(BaseModel):
+    rating: int = Field(ge=1, le=10)
+
+
+class MovieRatingSummarySchema(BaseSchema):
+    movie_id: int
+    average_rating: float | None
+    ratings_count: int
+    user_rating: int | None

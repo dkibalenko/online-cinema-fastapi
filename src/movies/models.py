@@ -179,6 +179,11 @@ class Movie(Base):
         back_populates="movie",
         cascade="all, delete-orphan"
     )
+    ratings: Mapped[list["MovieRating"]] = relationship(
+        "MovieRating",
+        back_populates="movie",
+        cascade="all, delete-orphan"
+    )
 
     @classmethod
     def default_order_by(cls):
@@ -214,6 +219,35 @@ class MovieLike(Base):
     )
     movie: Mapped["Movie"] = relationship("Movie", back_populates="likes")
     user: Mapped["User"] = relationship("User", back_populates="movie_likes")
+
+
+class MovieRating(Base):
+    __tablename__ = "movie_ratings"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "movie_id",
+            name="uq_movie_rating_user_movie"
+        ),
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+    movie_id: Mapped[int] = mapped_column(
+        ForeignKey("movies.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    movie: Mapped["Movie"] = relationship("Movie", back_populates="ratings")
+    user: Mapped["User"] = relationship("User", back_populates="movie_ratings")
 
 
 class Certification(Base):
