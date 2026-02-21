@@ -1,7 +1,6 @@
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from fastapi_pagination.ext.sqlalchemy import paginate
-from fastapi_pagination import Page
 
 from logger_config import get_logger
 
@@ -18,9 +17,9 @@ from movies.schemas import (
     MovieRatingCreateSchema,
     MovieRatingSummarySchema,
     FavoriteMovieResponseSchema,
-    FavoriteMovieListSchema,
     MovieFilterParams,
-    MovieSortParams
+    MovieSortParams,
+    MovieDetailSchema
 )
 
 log = get_logger()
@@ -30,10 +29,28 @@ class MovieService:
     def __init__(self, repo: MovieRepository):
         self.repo = repo
 
-    async def get_movie_detail(self, movie_id: int) -> Movie:
-        """
-        Get a movie by its ID.
-        """
+    async def get_movie_list(
+        self,
+        user_id: int,
+        filter_query: MovieFilterParams,
+        sort_query: MovieSortParams
+    ):
+        filtered_query = build_movie_filter_query(filter_query, sort_query)
+
+        page = await paginate(self.repo.db, filtered_query)
+
+        favorite_ids = await self.repo.get_favorite_movie_ids(user_id)
+
+        for movie in page.items:
+            movie.is_favorite = movie.id in favorite_ids
+
+        return page
+
+    async def get_movie_detail(
+        self,
+        movie_id: int,
+        user_id: int
+    ) -> MovieDetailSchema:
         log.info(f"Fetching movie detail | movie_id={movie_id}")
         movie = await self.repo.get_movie_by_id_with_relations(movie_id)
 
@@ -43,7 +60,13 @@ class MovieService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Movie with ID {movie_id} not found."
             )
-        return movie
+
+        is_favorite = await self.repo.is_favorite(user_id, movie_id)
+
+        return MovieDetailSchema(
+            **movie.__dict__,
+            is_favorite=is_favorite
+        )
 
     async def create_movie(self, data: MovieCreateSchema) -> Movie:
         """
