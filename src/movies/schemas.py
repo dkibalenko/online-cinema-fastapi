@@ -45,6 +45,7 @@ class MovieListItemSchema(BaseSchema):
     year: int
     imdb: float
     description: str
+    is_favorite: bool = False
 
 
 class MovieDetailSchema(MovieBaseSchema):
@@ -54,6 +55,7 @@ class MovieDetailSchema(MovieBaseSchema):
     genres: List[GenreSchema]
     stars: List[StarSchema]
     directors: List[DirectorSchema]
+    is_favorite: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
