@@ -184,6 +184,11 @@ class Movie(Base):
         back_populates="movie",
         cascade="all, delete-orphan"
     )
+    favorites: Mapped[list["FavoriteMovie"]] = relationship(
+        "FavoriteMovie",
+        back_populates="movie",
+        cascade="all, delete-orphan"
+    )
 
     @classmethod
     def default_order_by(cls):
@@ -220,6 +225,12 @@ class MovieLike(Base):
     movie: Mapped["Movie"] = relationship("Movie", back_populates="likes")
     user: Mapped["User"] = relationship("User", back_populates="movie_likes")
 
+    def __repr__(self):
+        return (
+            f"MovieLike(user_id={self.user_id}, movie_id={self.movie_id}, "
+            f"is_like={self.is_like})"
+        )
+
 
 class MovieRating(Base):
     __tablename__ = "movie_ratings"
@@ -248,6 +259,47 @@ class MovieRating(Base):
 
     movie: Mapped["Movie"] = relationship("Movie", back_populates="ratings")
     user: Mapped["User"] = relationship("User", back_populates="movie_ratings")
+
+    def __repr__(self):
+        return (
+            f"MovieRating(user_id={self.user_id}, movie_id={self.movie_id}, "
+            f"rating={self.rating})"
+        )
+
+
+class FavoriteMovie(Base):
+    __tablename__ = "favorite_movies"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "movie_id",
+            name="uq_favorite_movie_user_movie"
+        ),
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+    movie_id: Mapped[int] = mapped_column(
+        ForeignKey("movies.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    movie: Mapped["Movie"] = relationship("Movie", back_populates="favorites")
+    user: Mapped["User"] = relationship(
+        "User", back_populates="favorite_movies"
+    )
+
+    def __repr__(self):
+        return (
+            f"FavoriteMovie(user_id={self.user_id}, movie_id={self.movie_id})"
+        )
 
 
 class Certification(Base):

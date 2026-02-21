@@ -1,7 +1,6 @@
 from typing import Any, Optional, List, Tuple
 
-from sqlalchemy import select, func
-from sqlalchemy import case
+from sqlalchemy import select, func, case, Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.engine import Row
@@ -11,7 +10,8 @@ from movies.models import (
     Genre,
     MoviesGenresModel,
     MovieLike,
-    MovieRating
+    MovieRating,
+    FavoriteMovie
 )
 
 
@@ -34,13 +34,13 @@ class MovieRepository:
             .where(Movie.id == movie_id)
         )
         result = await self.db.execute(stmt)
-        return result.unique().scalar_one_or_none()
+        return result.unique().scalar_one_or_none()  # for joinedload/selectinload
 
     async def get_movie_basic(self, movie_id: int) -> Optional[Movie]:
         result = await self.db.execute(
             select(Movie).where(Movie.id == movie_id)
         )
-        return result.unique().scalar_one_or_none()
+        return result.unique().scalar_one_or_none()  # for joinedload/selectinload
 
     async def get_movie_by_name_year(
         self,
@@ -325,3 +325,69 @@ class MovieRepository:
         user_rating = user_result.scalar_one_or_none()
 
         return avg_rating, count, user_rating
+
+    async def add_favorite(self, user_id: int, movie_id: int) -> None:
+        """
+        Add a favorite movie to the user.
+
+        :param user_id: The user ID to add the favorite movie to.
+        :param movie_id: The movie ID to add as favorite.
+        :return: None
+        """
+        stmt = select(FavoriteMovie).where(
+            FavoriteMovie.user_id == user_id,
+            FavoriteMovie.movie_id == movie_id
+        )
+        result = await self.db.execute(stmt)
+        existing = result.scalar_one_or_none()
+
+        if not existing:
+            self.db.add(FavoriteMovie(user_id=user_id, movie_id=movie_id))
+            await self.db.flush()
+
+    async def remove_favorite(self, user_id: int, movie_id: int) -> None:
+        """
+        Remove a favorite movie from the user.
+
+        :param user_id: The user ID to remove the favorite movie from.
+        :param movie_id: The movie ID to remove as favorite.
+        :return: None
+        """
+        stmt = select(FavoriteMovie).where(
+            FavoriteMovie.user_id == user_id,
+            FavoriteMovie.movie_id == movie_id
+        )
+        result = await self.db.execute(stmt)
+        favovite = result.scalar_one_or_none()
+
+        if favovite:
+            await self.db.delete(favovite)
+            await self.db.flush()
+
+    async def is_favorite(self, user_id: int, movie_id: int) -> bool:
+        """
+        Check if a movie is a favorite of the user.
+
+        :param user_id: The user ID to check the favorite movie of.
+        :param movie_id: The movie ID to check as favorite.
+        :return: True if the movie is a favorite of the user, False otherwise.
+        """
+        stmt = select(FavoriteMovie).where(
+            FavoriteMovie.user_id == user_id,
+            FavoriteMovie.movie_id == movie_id
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
+    async def get_favorites_query(self, user_id: int) -> Select:
+        """
+        Get a query to retrieve favorite movies of a user.
+
+        :param user_id: The user ID to retrieve the favorite movies of.
+        :return: A SQLAlchemy query object.
+        """
+        return (
+            select(Movie)
+            .join(FavoriteMovie, FavoriteMovie.movie_id == Movie.id)
+            .where(FavoriteMovie.user_id == user_id)
+        )

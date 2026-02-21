@@ -1,4 +1,4 @@
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, Select
 
 from movies.models import Movie, Star, Director, MoviesGenresModel
 from movies.schemas import MovieFilterParams, MovieSortParams
@@ -6,20 +6,23 @@ from movies.schemas import MovieFilterParams, MovieSortParams
 
 def build_movie_filter_query(
     filter_query: MovieFilterParams,
-    sort_query: MovieSortParams
-) -> select:
+    sort_query: MovieSortParams,
+    base_query: Select | None = None
+) -> Select:
     """
     Builds a SQLAlchemy select statement for filtering and sorting movies
 
     Parameters:
     filter_query (MovieFilterParams): object containing filter parameters
     sort_query (MovieSortParams): object containing sort parameters
+    base_query (select, optional): base query to build upon
 
     Returns:
     select: SQLAlchemy select statement with applied filters and sorting
     """
     # base query. ensures that joins (stars, directors) don’t duplicate rows
-    stmt = select(Movie).distinct()
+    stmt = base_query if base_query is not None else select(Movie)
+    stmt = stmt.distinct()
 
     # 1. Apply Genre Filter (/movies?genre_id=3. Clicking on a genre)
     if filter_query.genre_id:

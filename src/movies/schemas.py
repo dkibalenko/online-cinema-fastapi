@@ -154,3 +154,12 @@ class MovieRatingSummarySchema(BaseSchema):
     average_rating: float | None
     ratings_count: int
     user_rating: int | None
+
+
+class FavoriteMovieResponseSchema(BaseSchema):
+    movie_id: int
+    is_favorite: bool
+
+
+class FavoriteMovieListSchema(MovieListItemSchema):
+    is_favorite: bool = True
