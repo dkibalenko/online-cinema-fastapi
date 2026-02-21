@@ -391,3 +391,17 @@ class MovieRepository:
             .join(FavoriteMovie, FavoriteMovie.movie_id == Movie.id)
             .where(FavoriteMovie.user_id == user_id)
         )
+
+    async def get_favorite_movie_ids(self, user_id: int) -> set[int]:
+        """
+        Retrieve the IDs of all favorite movies of a user.
+
+        :param user_id: The user ID to retrieve the favorite movies of.
+        :return: A set of movie IDs.
+        """
+        stmt = (
+            select(FavoriteMovie.movie_id)
+            .where(FavoriteMovie.user_id == user_id)
+        )
+        result = await self.db.execute(stmt)
+        return {row[0] for row in result.all()}
