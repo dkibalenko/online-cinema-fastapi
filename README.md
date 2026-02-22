@@ -573,19 +573,112 @@ select(Movie)
 
 This keeps the architecture clean, modular, and consistent.
 
-### Integration with the Movie Domain
+### Integration with the Movie and User Domains
 Favorites are exposed through the `Movie` and `User` models:
 ```python
-favorites = relationship(
-    "FavoriteMovie",
-    back_populates="movie",
-    cascade="all, delete-orphan"
-)
+# Movie model
+favorites: Mapped[list["FavoriteMovie"]] = relationship(
+        "FavoriteMovie",
+        back_populates="movie",
+        cascade="all, delete-orphan"
+    )
+
+# User model
+favorite_movies: Mapped[list["FavoriteMovie"]] = relationship(
+        "FavoriteMovie",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
 ```
 This allows:
 - automatic cleanup when movies or users are deleted
 - easy access to favorites in higher‑level services
 - consistent domain modeling alongside likes and ratings
+
+## ⭐ Favorite Status in Movie List & Detail Responses
+The API automatically annotates each movie with an `is_favorite` flag, allowing clients to easily determine whether the authenticated user has added a movie to their favorites. This behavior applies to both:
+- Movie list responses (`GET /movies`)
+- Movie detail responses (`GET /movies/{movie_id}`)
+
+This makes it easy for frontends to display “favorite” icons, highlight saved movies, or toggle favorites without additional API calls.
+
+### How It Works
+When a user is authenticated, the API:
+- Retrieves the user’s favorite movie IDs
+- Annotates each movie in the list with `is_favorite`: true or false
+- Annotates the movie detail response with the same flag
+
+This ensures consistent behavior across all endpoints.
+
+### Movie List Response Example
+`GET /movies?sort_by=imdb&order=desc&page=1&size=20`
+```json
+{
+  "items": [
+    {
+      "id": 102,
+      "name": "Inception",
+      "year": 2010,
+      "imdb": 8.8,
+      "description": "A thief who steals corporate secrets...",
+      "is_favorite": true
+    },
+    {
+      "id": 205,
+      "name": "Interstellar",
+      "year": 2014,
+      "imdb": 8.6,
+      "description": "A team of explorers travel...",
+      "is_favorite": false
+    }
+  ],
+  "total": 2,
+  "page": 1,
+  "size": 20
+}
+```
+
+#### Key points:
+- `is_favorite` is included for every movie
+- Pagination and filtering
+- No additional API calls are required to determine favorite status
+
+### Movie Detail Response Example
+`GET /movies/102`
+```json
+{
+  "id": 102,
+  "uu_id": "c0a801f4-5e2a-4b1e-9f7a-1b2c3d4e5f6a",
+  "name": "Inception",
+  "year": 2010,
+  "time": 148,
+  "imdb": 8.8,
+  "votes": 2000000,
+  "description": "A thief who steals corporate secrets...",
+  "meta_score": 74,
+  "gross": "292.58",
+  "price": "4.99",
+  "certification": { ... },
+  "genres": [ ... ],
+  "stars": [ ... ],
+  "directors": [ ... ],
+  "is_favorite": true
+}
+```
+
+#### Key points:
+- The detail response now includes `is_favorite`
+- This allows frontends to show a filled/empty “favorite” icon
+- No need to call `/movies/{id}/favorite` just to check status
+
+### Implementation Notes
+- The `is_favorite` flag is computed efficiently using a **bulk lookup of the user’s favorite movie IDs**.
+- No N+1 queries are performed.
+- The flag is added dynamically at the service layer and does not affect the database schema.
+- The behavior is consistent across:
+  - movie list
+  - movie detail
+  - favorites list
 
 ---
 
