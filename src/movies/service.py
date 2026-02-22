@@ -35,6 +35,21 @@ class MovieService:
         filter_query: MovieFilterParams,
         sort_query: MovieSortParams
     ):
+        """
+        Fetches a list of movies based on the given filters and sort order
+
+        Parameters:
+            user_id (int): The ID of the user to fetch favorite movies for
+            filter_query (MovieFilterParams): The filters to apply to
+                the movie list
+            sort_query (MovieSortParams): The sort order to apply to
+                the movie list
+
+        Returns:
+            Page[MovieDetailSchema]: A paginated list of movies with their
+                favorite status
+        """
+        log.info("Fetching movie list")
         filtered_query = build_movie_filter_query(filter_query, sort_query)
 
         page = await paginate(self.repo.db, filtered_query)
@@ -42,6 +57,7 @@ class MovieService:
         favorite_ids = await self.repo.get_favorite_movie_ids(user_id)
 
         for movie in page.items:
+            # efficiently compute is_favorite by a bulk lookup of user's favorite movie IDs
             movie.is_favorite = movie.id in favorite_ids
 
         return page
@@ -51,6 +67,17 @@ class MovieService:
         movie_id: int,
         user_id: int
     ) -> MovieDetailSchema:
+        """
+        Fetches a movie by its ID, including its favorite status for
+            the given user
+
+        Parameters:
+            movie_id (int): The ID of the movie to fetch
+            user_id (int): The ID of the user to fetch favorite status for
+
+        Returns:
+            MovieDetailSchema: A movie with its favorite status
+        """
         log.info(f"Fetching movie detail | movie_id={movie_id}")
         movie = await self.repo.get_movie_by_id_with_relations(movie_id)
 
