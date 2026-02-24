@@ -1,6 +1,7 @@
 from decimal import Decimal
 from typing import List, Optional
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
@@ -165,3 +166,18 @@ class FavoriteMovieResponseSchema(BaseSchema):
 
 class FavoriteMovieListSchema(MovieListItemSchema):
     is_favorite: bool = True
+
+
+class CommentCreateSchema(BaseModel):
+    content: str = Field(..., min_length=1, max_length=2000)
+    parent_id: Optional[int] = None
+
+
+class CommentSchema(BaseSchema):
+    id: int
+    movie_id: int
+    user_id: int
+    content: str
+    parent_id: Optional[int]
+    created_at: datetime
+    updated_at: datetime
