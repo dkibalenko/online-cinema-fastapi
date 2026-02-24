@@ -20,7 +20,8 @@ from auth.schemas import (
     PasswordResetCompleteRequestSchema,
     ChangePasswordSchema,
 )
-from auth.interfaces import JWTAuthManagerInterface, EmailSenderInterface
+from auth.interfaces import JWTAuthManagerInterface
+from notifications.interfaces import EmailSenderInterface
 from auth.repository import AuthRepository
 from logger_config import get_logger
 from config import BaseAppSettings
