@@ -1,5 +1,5 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -16,7 +16,7 @@ from notifications.interfaces import EmailSenderInterface
 from notifications.dependencies import get_auth_email_sender
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+bearer_scheme = HTTPBearer()
 
 log = get_logger()
 
@@ -49,13 +49,15 @@ def get_jwt_auth_manager(
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     db: AsyncSession = Depends(get_db)
 ) -> User:
     """
     Extracts and returns the authenticated user based on the access token.
     """
+    token = credentials.credentials
+
     try:
         payload = jwt_manager.decode_access_token(token)
     except TokenExpiredError:
