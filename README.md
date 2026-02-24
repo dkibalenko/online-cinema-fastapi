@@ -682,6 +682,208 @@ This ensures consistent behavior across all endpoints.
 
 ---
 
+## ⭐ Movie Comments: Threaded Replies + Real‑Time Notifications
+The Online Cinema platform includes a fully‑featured movie comments system with:
+- Threaded (nested) replies
+- Email notifications for comment replies (via Celery + Mailhog)
+- Real‑time WebSocket notifications for online users
+- JWT‑authenticated WebSocket connections
+- Cascade deletion and clean relational structure
+- Production‑grade error handling and connection management
+
+This subsystem is designed for scalability, clarity, and maintainability.
+
+### Architecture Overview
+Components involved:
+| Component              | Responsibility                                          |
+| ---------------------- | ------------------------------------------------------- |
+| **`MovieComment` model** | Stores comments, replies, timestamps, and relationships |
+| **`MovieService`**       | Business logic for creating and listing comments        |
+| **Celery Worker**      | Sends email notifications asynchronously                |
+| **Mailhog**            | Local SMTP server for testing email delivery            |
+| **WebSocket Router**   | Handles authenticated WS connections                    |
+| **`ConnectionManager`**  | Tracks active user WebSocket sessions                   |
+| **JWT WebSocket Auth** | Validates tokens passed via query params                |
+
+### `MovieComment` Model & Database Design
+The MovieComment model is the backbone of the commenting system. It supports **threaded replies, cascade deletion, fast lookups**, and **clean relational integrity**.
+
+This section documents the model’s structure, relationships, and indexing strategy.
+
+Each comment is represented by a MovieComment record with the following fields:
+| Field        | Type       | Description      |                                           |
+| ------------ | ---------- | ---------------- | ----------------------------------------- |
+| `id`         | `int`      | Primary key      |                                           |
+| `movie_id`   | `int`      | FK → `movies.id` |                                           |
+| `user_id`    | `int`      | FK → `users.id`  |                                           |
+| `parent_id`  | `int`      | `null`           | Self‑referential FK → `movie_comments.id` |
+| `content`    | `text`     | Comment text     |                                           |
+| `created_at` | `datetime` | Timestamp (UTC)  |                                           |
+| `updated_at` | `datetime` | Timestamp (UTC)  |                                          `
+
+### Relationships
+#### 1. Movie → Comments
+
+A movie can have many comments:
+```python
+movie = relationship("Movie", back_populates="comments")
+```
+#### 2. User → Comments
+A user can author many comments:
+```python
+user = relationship("User", back_populates="movie_comments")
+```
+#### 3. Self‑referential Parent → Replies
+This is what enables threaded replies:
+```python
+parent = relationship(
+    "MovieComment",
+    remote_side=[id],
+    backref="replies"
+)
+```
+This means:
+- A comment may have zero or one parent
+- A comment may have zero or many replies
+- Replies can be nested indefinitely (though UI typically limits depth)
+
+### Cascade Behavior
+All foreign keys use `ON DELETE CASCADE`:
+- Deleting a **movie** removes all its comments
+- Deleting a **user** removes all their comments
+- Deleting a **parent** comment removes all nested replies
+
+This ensures the database stays clean without orphaned records.
+
+### Indexing Strategy
+To support fast queries, especially on large datasets, the following indexes are created:
+| Index                         | Column      | Purpose                                                |
+| ----------------------------- | ----------- | ------------------------------------------------------ |
+| `ix_movie_comments_movie_id`  | `movie_id`  | Fast lookup of comments for a movie                    |
+| `ix_movie_comments_parent_id` | `parent_id` | Fast lookup of replies                                 |
+| `ix_movie_comments_user_id`   | `user_id`   | Fast lookup of comments by user (moderation, profiles) |
+These indexes dramatically improve performance for:
+- Listing comments for a movie
+- Fetching replies for a comment
+- Moderation tools (e.g., “show all comments by user”)
+
+
+### Commenting Flow
+#### 1. User posts a top‑level comment
+`POST /api/v1/cinema/movies/{movie_id}/comments`
+- Comment is stored in DB
+- No notifications are sent
+- Response includes comment metadata
+
+#### 2. User posts a reply
+`POST /api/v1/cinema/movies/{movie_id}/comments`
+
+Payload example:
+```json
+{
+  "content": "This is a reply!",
+  "parent_id": 42
+}
+```
+When a reply is created:
+- The parent comment’s author receives an email notification
+- If the parent author is connected via WebSocket, they receive a real‑time push notification
+
+### Email Notifications (Celery + Mailhog)
+Reply notifications are sent asynchronously using Celery:
+- Task: `send_comment_reply_notification`
+- Template: `comment_reply.html`
+- SMTP: Mailhog (`localhost:1025`)
+- View emails at: `http://localhost:8025`
+
+This ensures the API remains fast and responsive.
+
+### Real‑Time Notifications (WebSocket)
+Users can subscribe to comment notifications via:
+```
+ws://localhost:8000/api/v1/cinema/ws/comments?token=<JWT>
+```
+
+#### **Features**:
+- **JWT authentication** (token passed via query param)
+- **Multiple simultaneous connections per user**
+- **Automatic cleanup on disconnect**
+- **JSON‑formatted notification payloads**
+
+#### Example WebSocket message:
+```json
+{
+  "type": "comment_reply",
+  "movie_id": 1,
+  "comment_id": 57,
+  "parent_id": 42,
+  "content": "Replying to your comment!",
+  "created_at": "2026-02-24T10:15:00Z"
+}
+```
+### WebSocket Authentication
+WebSockets do not support FastAPI’s dependency injection for OAuth2, so authentication is handled manually:
+- Client passes `?token=<JWT>` in the URL
+- Server decodes and validates the token
+- User is loaded from the database
+- Invalid tokens result in a clean WebSocket close (`1008`)
+
+This approach is robust and production‑safe.
+
+### Testing the Feature
+#### 1. Connect WebSocket (Browser Console)
+```js
+const token = "<JWT>";
+const ws = new WebSocket(`ws://localhost:8000/api/v1/cinema/ws/comments?token=${token}`);
+
+ws.onopen = () => console.log("Connected");
+ws.onmessage = (e) => console.log("WS Notification:", JSON.parse(e.data));
+ws.onclose = () => console.log("Closed");
+```
+
+#### 2. Add a top‑level comment (Postman)
+```
+POST /api/v1/cinema/movies/1/comments
+Authorization: Bearer <JWT>
+
+{
+  "content": "Great movie!"
+}
+```
+
+#### 3. Add a reply (Postman)
+```
+POST /api/v1/cinema/movies/1/comments
+Authorization: Bearer <JWT>
+
+{
+  "content": "I agree!",
+  "parent_id": 1
+}
+```
+Expected results:
+- Email appears in Mailhog
+- WebSocket receives a JSON notification
+
+### Connection Manager
+The WebSocket manager tracks active connections:
+- `user_id → [WebSocket, WebSocket, ...]`
+- Supports multiple browser tabs
+- Sends notifications to all active sessions
+- Cleans up on disconnect
+
+This makes the system horizontally scalable.
+
+### Summary
+This feature delivers a complete, modern commenting experience:
+- Threaded replies
+- Email notifications
+- Real‑time WebSocket updates
+- Clean architecture
+- Production‑ready error handling
+- Fully testable with Postman + Mailhog + browser console
+---
+
 ## ⭐ Database Migrations (Local + Docker)
 This project uses Alembic for SQLAlchemy schema migrations.
 Migrations are generated locally and applied inside Docker using a dedicated migrator service.
@@ -693,7 +895,7 @@ This section explains:
 - Why two Alembic config files exist
 - How the project structure is wired
 
-### 🔧 Project Structure (relevant to Alembic)
+### Project Structure (relevant to Alembic)
 ```
 project/
 │
