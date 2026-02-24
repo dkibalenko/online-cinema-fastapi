@@ -2,23 +2,13 @@ import asyncio
 
 from config import get_settings
 from cinema_celery.celery_app import app
-from auth.email_manager import EmailSender
+from notifications.factories import create_auth_email_sender
+from notifications.interfaces import EmailSenderInterface
 
 
-def get_email_sender() -> EmailSender:
+def get_email_sender() -> EmailSenderInterface:
     settings = get_settings()
-    return EmailSender(
-        hostname=settings.SMTP_SERVER,
-        port=settings.SMTP_PORT,
-        username=settings.SMTP_USERNAME,
-        password=settings.SMTP_PASSWORD,
-        use_tls=settings.SMTP_USE_TLS,
-        template_dir=settings.PATH_TO_EMAIL_TEMPLATES_DIR,
-        activation_email_template_name=settings.ACTIVATION_EMAIL_TEMPLATE_NAME,
-        activation_complete_email_template_name=settings.ACTIVATION_COMPLETE_EMAIL_TEMPLATE_NAME,
-        password_email_template_name=settings.PASSWORD_RESET_TEMPLATE_NAME,
-        password_complete_email_template_name=settings.PASSWORD_RESET_COMPLETE_TEMPLATE_NAME,
-    )
+    return create_auth_email_sender(settings)
 
 
 @app.task
