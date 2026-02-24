@@ -16,7 +16,9 @@ from movies.schemas import (
     MovieRatingCreateSchema,
     MovieRatingSummarySchema,
     FavoriteMovieResponseSchema,
-    FavoriteMovieListSchema
+    FavoriteMovieListSchema,
+    CommentCreateSchema,
+    CommentSchema,
 )
 from movies.service import MovieService
 from auth.dependencies import get_current_user
@@ -256,3 +258,31 @@ async def remove_from_favorites(
     user: Annotated[User, Depends(get_current_user)]
 ):
     return await service.remove_from_favorites(user.id, movie_id)
+
+
+@router.post(
+    "/{movie_id}/comments",
+    response_model=CommentSchema,
+    summary="Add a comment to a movie",
+    status_code=status.HTTP_201_CREATED
+)
+async def add_comment(
+    movie_id: int,
+    payload: CommentCreateSchema,
+    service: Annotated[MovieService, Depends(get_movie_service)],
+    user: Annotated[User, Depends(get_current_user)]
+):
+    return await service.add_comment(movie_id, user.id, payload)
+
+
+@router.get(
+    "/{movie_id}/comments",
+    response_model=list[CommentSchema],
+    summary="List comments for a movie",
+    status_code=status.HTTP_200_OK
+)
+async def list_comments(
+    movie_id: int,
+    service: Annotated[MovieService, Depends(get_movie_service)]
+):
+    return await service.list_comments(movie_id)
