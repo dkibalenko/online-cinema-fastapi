@@ -7,11 +7,11 @@ from pagination import setup_pagination
 from logger_config import setup_logging
 from rate_limiting import limiter
 
-import auth.models  # ensures backrefs are registered
 from auth.router import router as auth_router
 from users.router import router as users_router
 from movies.router import router as movies_router
 from movies.genres_router import router as genres_router
+from notifications.ws_router import router as ws_router
 
 
 def create_app() -> FastAPI:
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
     app.include_router(users_router, prefix=f"{api_version_prefix}")
     app.include_router(movies_router, prefix=f"{api_version_prefix}")
     app.include_router(genres_router, prefix=f"{api_version_prefix}")
+    app.include_router(ws_router, prefix=f"{api_version_prefix}")
 
     # Middleware
     app.state.limiter = limiter

@@ -46,11 +46,15 @@ class BaseAppSettings(BaseSettings):
     S3_BUCKET_NAME: str
 
     # Safe defaults
-    PATH_TO_EMAIL_TEMPLATES_DIR: str = str(BASE_DIR / "auth" / "templates")
+    PATH_TO_AUTH_EMAIL_TEMPLATES_DIR: str = str(BASE_DIR / "auth" / "templates")
+    PATH_TO_CELERY_TASKS_EMAIL_TEMPLATES_DIR: str = str(
+        BASE_DIR / "cinema_celery" / "tasks" / "templates"
+    )
     ACTIVATION_EMAIL_TEMPLATE_NAME: str = "activation_request.html"
     ACTIVATION_COMPLETE_EMAIL_TEMPLATE_NAME: str = "activation_complete.html"
     PASSWORD_RESET_TEMPLATE_NAME: str = "password_reset_request.html"
     PASSWORD_RESET_COMPLETE_TEMPLATE_NAME: str = "password_reset_complete.html"
+    COMMENT_REPLY_TEMPLATE_NAME: str = "comment_reply.html"
 
     LOGIN_TIME_DAYS: int = 7
 
