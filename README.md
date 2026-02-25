@@ -1,61 +1,40 @@
 # Online Cinema
 
-This project is an actively developed, production‑grade RESTful API built with FastAPI, SQLAlchemy 2.0, Celery, Redis, PostgreSQL, and MinIO.  
+This project is an actively developed, production‑grade RESTful API built with FastAPI, SQLAlchemy 2.0, Celery, Redis, PostgreSQL, Docker, MinIO, MailHog and many other tools.  
 It already includes a complete authentication system, user management, movie catalog with genres/stars/directors, likes, ratings, email workflows, and a fully containerized multi‑service architecture.
 
-I continue expanding the system daily — CI/CD, deployment, and automated test coverage are next on the roadmap. The goal is to demonstrate real backend engineering practices, not just CRUD endpoints.
+I continue expanding the system daily — CI/CD, deployment, and automated test coverage are next on the roadmap. The goal is to **demonstrate real backend engineering practices**, not just CRUD endpoints.
 
 An online cinema is a digital platform that allows users to select, watch, and purchase access to movies and other video materials via the internet.
 
-## ⭐ Authentication & User Management
+---
 
-The project uses a clean domain‑based architecture with separate apps:
+## ⭐ Authentication System
+The authentication subsystem provides a complete, secure, and production‑ready identity flow for the Online Cinema platform. It includes user onboarding, JWT‑based authentication, role‑based access control, and asynchronous email notifications.
 
-- `auth/` — authentication, tokens, login, registration
-- `users/` — user identity, profiles, roles (RBAC)
-
-This separation keeps the codebase maintainable and avoids circular imports.
-
-### Directory Structure
-```
-src/
-  __init__.py
-  auth/
-    __init__.py
-    router.py
-    service.py
-    repository.py
-    dependencies.py
-    models.py
-  users/
-    __init__.py
-    router.py
-    service.py
-    repository.py
-    dependencies.py
-    models.py
-    enums.py
-    validators.py
-    utils.py
-```
-### ⭐ Auth App
-The auth app handles:
+### Features Overview
+The Auth app handles:
 - User registration
-- Email activation
-- Login
-- Refresh tokens
-- Logout
+- Email activation (activation token + Celery email)
+- Login (JWT access + refresh tokens)
+- Refresh token rotation
+- Logout (refresh token invalidation)
 - Password reset (request + complete)
 - Password change
 - Token validation
 - Email notifications via Celery
+- Role‑based access control (RBAC)
 
-#### Token Models
+All flows are designed to be secure, scalable, and easy to integrate with other services.
 
-All token models inherit from a shared TokenBaseModel:
-- `ActivationToken`
-- `PasswordResetToken`
-- `RefreshToken`
+### Token Models
+
+All token types inherit from a shared `TokenBaseModel`, ensuring consistency and reducing duplication.
+
+Token types include:
+- `ActivationToken` — sent during registration
+- `PasswordResetToken` — used for password recovery
+- `RefreshToken` — stored in DB for session management
 
 They are stored in a single module:
 ```
@@ -63,59 +42,346 @@ auth/models.py
 ```
 This keeps the authentication domain cohesive and avoids fragmentation.
 
-#### JWT Authentication
+### JWT Authentication
+The system uses a two‑token strategy:
+#### Access Token
+- Short‑lived
+- Encodes user ID, token type, and expiration
+- Used for authenticating API requests
+- Verified using get_current_user
 
-The project uses:
-- Access tokens (short‑lived)
-- Refresh tokens (stored in DB)
-- Role‑based access control (RBAC)
+#### Refresh Token
+- Long‑lived
+- Stored in the database
+- Rotated on each refresh
+- Invalidated on logout
+- Prevents replay attacks
 
-`get_current_user` decodes the access token and loads the user from the database.
+Token Payload Example:
+```json
+{
+  "user_id": 1,
+  "type": "access",
+  "exp": 1771927955
+}
+```
+### Authentication Flow
+#### 1. Registration
+User submits email + password → receives activation email.
 
-### ⭐ Users App
-The users app manages:
-- User entity
-- User groups (RBAC)
-- User profiles
+#### 2. Email Activation
+User clicks activation link → account becomes active.
+
+#### 3. Login
+User receives:
+- access_token
+- refresh_token
+
+#### 4. Authenticated Requests
+Clients send:
+```
+Authorization: Bearer <access_token>
+```
+#### 5. Token Refresh
+Client exchanges refresh token for new tokens.
+
+#### 6. Logout
+Refresh token is deleted from DB.
+
+### HTTP Bearer Authentication (Swagger‑Friendly)
+The project uses HTTPBearer for token extraction:
+```python
+from fastapi.security import HTTPBearer
+
+bearer_scheme = HTTPBearer()
+```
+This provides:
+- Clean Swagger UI (“Bearer Token” input)
+- No OAuth2 password flow confusion
+- Simple extraction of `Authorization: Bearer <token>`
+
+#### `get_current_user` Flow
+- Extract token from header
+- Decode JWT
+- Validate token type
+- Load user from DB
+- Check activation status
+- Return authenticated user
+
+This dependency powers all protected routes.
+
+### Role‑Based Access Control (RBAC)
+Roles are defined in `UserGroupEnum`:
+- ADMIN
+- MODERATOR
+- USER
+
+Routes can enforce roles using:
+```python
+@router.post("/movies", dependencies=[Depends(require_role(UserGroupEnum.ADMIN))])
+```
+The `require_role` dependency ensures only authorized users can access sensitive endpoints.
+
+### Email Notifications (Celery)
+The Auth app sends emails asynchronously using Celery:
+- Activation email
+- Password reset email
+- Password reset confirmation
+- Activation confirmation
+
+SMTP is handled by Mailhog during development.
+
+This keeps the API responsive and avoids blocking I/O.
+
+### Auth Architecture Summary
+| Component            | Responsibility                        |
+| -------------------- | ------------------------------------- |
+| **`JWTAuthManager`**   | Encode/decode access & refresh tokens |
+| **`AuthRepository`**   | DB operations for users & tokens      |
+| **`AuthService`**      | High‑level auth logic                 |
+| **`HTTPBearer`**       | Extracts JWT from headers             |
+| **`get_current_user`** | Validates token & loads user          |
+| **Celery tasks**     | Sends auth‑related emails             |
+| **Token models**     | Activation, reset, refresh tokens     |
+
+### Testing Authentication
+#### Login
+```
+POST /api/v1/cinema/auth/login
+```
+#### Use token in Swagger
+```
+Authorize → Bearer Token → <access_token>
+```
+#### Refresh token
+```
+POST /api/v1/cinema/auth/refresh
+```
+#### Logout
+```
+POST /api/v1/cinema/auth/logout
+```
+
+### Summary
+The authentication subsystem is:
+- Modular
+- Secure
+- JWT‑based
+- Role‑aware
+- Asynchronous
+- Swagger‑friendly
+- Production‑ready
+
+It provides a complete foundation for user identity, session management, and secure access control across the entire platform.
+---
+
+## ⭐ Users App
+The Users App provides a complete user management subsystem, including user entities, profiles, RBAC (role‑based access control), and a full administrative console for managing users and permissions. It integrates tightly with the **Auth App** and supports both self‑service user operations and privileged admin workflows.
+
+### Directory Structure:
+```
+users/
+│
+├── admin/
+│   ├── services/
+│   │   ├── user_service.py
+│   │   └── profile_service.py
+│   |
+│   ├── repositories/
+│   │   ├── users.py
+│   │   └── profiles.py
+│   |
+│   ├── router.py
+│   ├── schemas.py
+│   └── dependencies.py
+│
+├── router.py
+├── dependencies.py
+├── service.py
+├── repository.py
+├── exceptions.py
+├── utils.py
+├── filters.py
+├── schemas.py
+└── models.py
+```
+
+### The Users App handles:
+
+### User Management
+- User creation (via Auth App)
+- User retrieval
+- User activation/deactivation (admin)
+- Password reset (admin)
+- Group assignment (RBAC)
+- Listing and filtering users (admin)
+
+### User Profiles
 - Profile creation
-- Profile retrieval
-- `/users/me` endpoint
+- Profile update
+- Profile deletion
+- Admin‑level profile creation for other users
+- Avatar upload (S3-compatible storage)
 
-#### User Models
-All user‑related models live in one file:
+### RBAC (Role‑Based Access Control)
+- Single‑group membership per user
+- Three roles:
+  - USER — basic access
+  - MODERATOR — content management (movies, genres, actors, etc.)
+  - ADMIN — full administrative privileges
+
+Enforced via `require_role()` dependency:
+```python
+Depends(require_role(UserGroupEnum.ADMIN))
+```
+Examples:
+- Movie creation/update/delete → MODERATOR or ADMIN
+- User management → ADMIN only
+- Profile self‑management → any authenticated user
+
+### Admin Console
+- Manage users
+- Change user groups
+- Activate/deactivate accounts
+- Reset passwords
+- Create/update/delete profiles for any user
+- Filter users by:
+- Email
+- Group
+- Activation status
+- Paginated user listing
+
+#### Paginated User Listing
+```
+GET /api/v1/cinema/admin/users
+```
+Supports filtering by:
+- `email` (substring match)
+- `group` (`USER`, `MODERATOR`, `ADMIN`)
+- `is_active` (`True`/`False`)
+
+Returns a paginated list of users.
+
+#### Change User Group
+```
+PATCH /api/v1/cinema/admin/users/{user_id}/group
+```
+Assigns a new group to a user.
+
+#### Activate User
+```
+POST /api/v1/cinema/admin/users/{user_id}/activate
+```
+Sets `is_active = True`.
+
+#### Deactivate User
+```
+POST /api/v1/cinema/admin/users/{user_id}/deactivate
+```
+Sets `is_active = False`.
+
+#### Reset User Password (Admin)
+```
+POST /api/v1/cinema/admin/users/{user_id}/reset-password
+```
+Allows admins to set a new password for any user.
+
+### Admin‑Level Profile Management
+
+Admins can create or update profiles for other users:
+```
+POST   /api/v1/cinema/admin/users/{user_id}/profile
+PATCH  /api/v1/cinema/admin/users/{user_id}/profile
+DELETE /api/v1/cinema/admin/users/{user_id}/profile
+```
+Supports:
+- Creating profiles for users without one
+- Updating any user’s profile
+- Deleting any user’s profile
+
+### User Models
+All user‑related models are located in:
 ```
 users/models.py
 ```
 This includes:
-- `User`
-- `UserGroup`
-- `UserProfile`
 
-Enums are stored separately:
-```
-users/enums.py
-```
+#### `User`
+- Email
+- Password hash
+- Activation status
+- Group (RBAC)
+- Profile (1:1)
+- Refresh tokens
+- Likes, ratings, favorites
+- Comments
 
-#### User Profiles
-Users can create a profile with:
+#### `UserGroup`
+- Defines available roles (`USER`, `MODERATOR`, `ADMIN`)
+- One‑to‑many relationship with users
+
+#### `UserProfile`
 - First name
 - Last name
 - Gender
 - Birth date
 - Info
-- Avatar (uploaded to S3)
+- Avatar URL (S3)
 
-Admins can create profiles for other users.
+Enums are stored separately in:
+```
+users/enums.py
+```
 
-#### `/users/me` Endpoint
-Authenticated users can retrieve their own profile:
+### User Profiles
+Users can manage their own profile via:
+```
+GET    /api/v1/cinema/users/me/profile
+PATCH  /api/v1/cinema/users/me/profile
+DELETE /api/v1/cinema/users/me/profile
+```
+Profile fields include:
+- First name
+- Last name
+- Gender
+- Birth date
+- Info
+- Avatar (uploaded to S3-compatible storage)
+
+### `/users/me` Endpoint
+Authenticated users can retrieve their own profile and metadata:
 ```
 GET /api/v1/cinema/users/me/
 ```
-Returns:
+Response includes:
 - Profile data
 - Avatar URL
-- User metadata
+- User group
+- Activation status
+- Timestamps
+
+### Architecture Summary
+| Layer            | Responsibility                              |
+| ---------------- | ------------------------------------------- |
+| **Router**       | Defines API endpoints and RBAC requirements |
+| **Service**      | Business logic, validation, orchestration   |
+| **Repository**   | Database operations (SQLAlchemy)            |
+| **Schemas**      | Request/response validation (Pydantic)      |
+| **Dependencies** | DI wiring for services and repositories     |
+This layered structure ensures clarity, testability, and maintainability.
+
+### Summary
+The Users App provides a complete, production‑ready user management system with:
+- Full CRUD for user profiles
+- Strong RBAC enforcement
+- Moderator and admin privilege separation
+- A robust admin console for managing users
+- Password resets, activation, deactivation
+- Filtering and pagination for large user bases
+- Admin‑level profile creation, update, and deletion
+- Clean layered architecture
+
+It integrates seamlessly with the Auth App and the Movies App, forming a cohesive and scalable backend platform.
 
 ---
 
@@ -257,6 +523,7 @@ The Movie Domain supports a flexible catalog system with:
 - Consistent ordering via `default_order_by()`
 
 ### Testing
+N/A
 
 ### Design Goals
 - Clean domain boundaries  
