@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from users.enums import UserGroupEnum
-from users.models import User, UserProfile, UserGroup
+from users.models import User, UserGroup
 
 
 class UserRepository:
@@ -23,7 +23,7 @@ class UserRepository:
         Retrieves a user by their ID including their associated group.
 
         :param user_id: The ID of the user to retrieve.
-        :return: The user with their associated group, or None if no user is found.
+        :return: The user with their associated group, or None.
         """
         stmt = (
             select(User)
@@ -38,7 +38,7 @@ class UserRepository:
         Retrieves a user by their ID including their associated profile.
 
         :param user_id: The ID of the user to retrieve.
-        :return: The user with their associated profile, or None if no user is found.
+        :return: The user with their associated profile, or None.
         """
         stmt = (
             select(User)

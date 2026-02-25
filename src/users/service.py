@@ -33,6 +33,21 @@ class UserService:
         data: ProfileCreationSchema,
         jwt_token: str
     ) -> Tuple[UserProfile, str | None]:
+        """
+        Create user profile.
+            - Validates the JWT token and checks permissions.
+            - Loads the current user and target user.
+            - Checks permissions.
+            - Creates the user profile.
+            - Returns the created profile.
+        
+        :param user_id: The ID of the user for whom the profile is being
+            created.
+        :param data: The profile creation data.
+        :param jwt_token: The JWT token for authentication.
+        :return: A tuple containing the created UserProfile and the avatar
+            URL (if uploaded).
+        """
         log.info(f"Profile creation attempt | user_id={user_id}")
 
         # 1. Validate token
@@ -157,6 +172,12 @@ class UserService:
         self,
         user_id: int
     ) -> Tuple[UserProfile, str | None]:
+        """
+        Retrieves a user's profile by their ID.
+
+        :param user_id: The ID of the user whose profile to retrieve.
+        :return: The user's profile, or None if no profile is found.
+        """
         log.info(f"Fetching profile | user_id={user_id}")
         user = await self.users.get_by_id_with_profile(user_id)
 
@@ -191,6 +212,20 @@ class UserService:
         data: ProfileUpdateSchema,
         jwt_token: str
     ) -> Tuple[UserProfile, str | None]:
+        """
+        Updates a user's profile.
+            - Validates the JWT token and checks permissions.
+            - Loads the current user and target user.
+            - Checks permissions.
+            - Updates the user profile.
+            - Returns the updated profile.
+        
+        :param user_id: The ID of the user whose profile to update.
+        :param data: The profile update data.
+        :param jwt_token: The JWT token for authentication.
+        :return: A tuple containing the updated UserProfile and the avatar
+            URL (if uploaded).
+        """
         log.info(f"Updating profile | user_id={user_id}")
 
         # 1. Validate token
@@ -300,6 +335,17 @@ class UserService:
         user_id: int,
         jwt_token: str
     ) -> None:
+        """
+        Deletes a user's profile.
+            - Validates the JWT token and checks permissions.
+            - Loads the current user and target user.
+            - Checks permissions.
+            - Deletes the user profile and avatar from S3.
+        
+            :param user_id: The ID of the user whose profile to delete.
+            :param jwt_token: The JWT token for authentication.
+            :return: None
+        """
         log.info(f"Deleting profile | user_id={user_id}")
 
         # 1. Validate token

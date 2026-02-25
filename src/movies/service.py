@@ -668,7 +668,10 @@ class MovieService:
                 )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid parent comment | "
+                    detail=(
+                        "Invalid parent comment. Parent comment does not exist"
+                        " or does not belong to the same movie."
+                    )
                 )
 
         comment = await self.repo.create_comment(
