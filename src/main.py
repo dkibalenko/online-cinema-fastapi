@@ -9,6 +9,7 @@ from rate_limiting import limiter
 
 from auth.router import router as auth_router
 from users.router import router as users_router
+from users.admin.router import router as admin_router
 from movies.router import router as movies_router
 from movies.genres_router import router as genres_router
 from notifications.ws_router import router as ws_router
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router, prefix=f"{api_version_prefix}")
     app.include_router(users_router, prefix=f"{api_version_prefix}")
+    app.include_router(admin_router, prefix=f"{api_version_prefix}")
     app.include_router(movies_router, prefix=f"{api_version_prefix}")
     app.include_router(genres_router, prefix=f"{api_version_prefix}")
     app.include_router(ws_router, prefix=f"{api_version_prefix}")
