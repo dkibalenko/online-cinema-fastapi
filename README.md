@@ -1352,3 +1352,157 @@ MAILHOG_USER / MAILHOG_PASSWORD
 - Inspect HTML templates, links, and formatting
 
 No real emails are sent.
+
+## ⭐ Database Seeding System
+The project includes a complete, asynchronous database seeding system designed to populate the initial dataset for the Online Cinema platform. It generates JSON seed files (if missing) and loads them into the database in a safe, idempotent way.
+
+The seeding system is fully automated and can be run at any time without duplicating data.
+
+### What the Seeder Does
+The seeding system performs the following tasks:
+
+#### 1. Generate JSON seed files (if missing)
+The generator creates structured JSON files for:
+- Certifications
+- Genres
+- Movies
+- Stars
+- Directors
+
+These files are stored under:
+```
+src/seeding/seed_data/
+```
+If any file is missing, it will be generated automatically.
+
+#### 2. Fetch random names for stars and directors
+The generator uses:
+```
+https://randomuser.me/api/
+```
+to fetch realistic names.
+If the API is unavailable, it falls back to a predefined list of names.
+
+#### 3. Insert base data into the database
+The seeder loads JSON files and inserts:
+- Certifications
+- Genres
+- Stars
+- Directors
+- Movies
+
+All inserts are idempotent — existing rows are detected and skipped.
+
+#### 4. Create movie associations
+Randomized associations are created:
+- Movie → Genres (up to 3)
+- Movie → Stars (up to 5)
+- Movie → Director (1)
+
+#### 5. Seed user groups (RBAC)
+The seeder ensures the following groups exist:
+- USER
+- MODERATOR
+- ADMIN
+
+These are required for RBAC and admin console functionality.
+
+#### 6. Commit all changes
+All inserts and associations are committed in a single transaction.
+
+### Configuration
+Paths to JSON files are defined in:
+```
+config.py
+```
+Example:
+```python
+CERT_JSON_PATH = "src/seeding/seed_data/certifications.json"
+MOVIE_JSON_PATH = "src/seeding/seed_data/movies.json"
+GENRE_JSON_PATH = "src/seeding/seed_data/genres.json"
+STARS_JSON_PATH = "src/seeding/seed_data/stars.json"
+DIRECTORS_JSON_PATH = "src/seeding/seed_data/directors.json"
+```
+These can be overridden via `.env` if needed.
+
+### JSON Generation
+The generator (`JsonDataGenerator`) creates:
+
+#### Certifications
+- Static list: `G`, `PG`, `PG‑13`, `R`, `NC‑17`.
+
+#### Genres
+- Static list of 20+ genres.
+
+#### Movies
+Randomized fields:
+- Name
+- Year
+- Runtime
+- IMDb rating
+- Votes
+- Meta score
+- Gross revenue
+- Description
+- Price
+- Certification
+
+#### Stars & Directors
+Fetched from `randomuser.me` with fallback names.
+
+### Database Population
+The seeder (`InitialDatabaseSeeder`) performs:
+
+#### 1. Insert unique rows
+Using `_insert_unique_by_name()`:
+- Avoids duplicates
+- Returns a mapping of `{name → id}`
+
+#### 2. Insert movies
+- Movies reference certifications via `certification_id`.
+
+#### 3. Insert associations
+Randomized many‑to‑many relationships:
+- `MoviesGenresModel`
+- `MoviesStarsModel`
+- `MoviesDirectorsModel`
+
+#### 4. Seed user groups
+Ensures RBAC groups exist:
+```python
+USER, MODERATOR, ADMIN
+```
+
+### Running the Seeder
+Run the seeding script:
+```
+python src/seeding/populate_db.py
+```
+This will:
+- Generate missing JSON files
+- Populate the database
+- Create associations
+- Seed user groups
+
+The process is **fully asynchronous** and **logs progress to the console**.
+
+### Architecture Summary
+| Component               | Responsibility                                                               |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| `JsonDataGenerator`     | Generates JSON seed files (certifications, genres, movies, stars, directors) |
+| `InitialDatabaseSeeder` | Loads JSON files and inserts data into the database                          |
+| `config.py`             | Defines paths to seed files and environment configuration                    |
+| `seed_data/`            | Stores generated JSON files                                                  |
+| `populate_db.py`        | Orchestrates the entire seeding process                                      |
+
+### Summary
+The seeding system provides:
+- Automatic JSON generation
+- Idempotent database population
+- Randomized movie metadata
+- Realistic star/director names
+- Complete RBAC group initialization
+- Fully asynchronous implementation
+- Clean separation of concerns
+
+This ensures that the Online Cinema platform always starts with a rich, consistent dataset suitable for development, testing, and demos.
