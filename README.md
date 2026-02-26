@@ -7,7 +7,6 @@ I continue expanding the system daily — CI/CD, deployment, and automated test 
 
 An online cinema is a digital platform that allows users to select, watch, and purchase access to movies and other video materials via the internet.
 
----
 
 ## ⭐ Authentication System
 The authentication subsystem provides a complete, secure, and production‑ready identity flow for the Online Cinema platform. It includes user onboarding, JWT‑based authentication, role‑based access control, and asynchronous email notifications.
@@ -27,6 +26,8 @@ The Auth app handles:
 
 All flows are designed to be secure, scalable, and easy to integrate with other services.
 
+---
+
 ### Token Models
 
 All token types inherit from a shared `TokenBaseModel`, ensuring consistency and reducing duplication.
@@ -41,6 +42,8 @@ They are stored in a single module:
 auth/models.py
 ```
 This keeps the authentication domain cohesive and avoids fragmentation.
+
+---
 
 ### JWT Authentication
 The system uses a two‑token strategy:
@@ -65,6 +68,9 @@ Token Payload Example:
   "exp": 1771927955
 }
 ```
+
+---
+
 ### Authentication Flow
 #### 1. Registration
 User submits email + password → receives activation email.
@@ -88,6 +94,8 @@ Client exchanges refresh token for new tokens.
 #### 6. Logout
 Refresh token is deleted from DB.
 
+---
+
 ### HTTP Bearer Authentication (Swagger‑Friendly)
 The project uses HTTPBearer for token extraction:
 ```python
@@ -110,6 +118,8 @@ This provides:
 
 This dependency powers all protected routes.
 
+---
+
 ### Role‑Based Access Control (RBAC)
 Roles are defined in `UserGroupEnum`:
 - ADMIN
@@ -122,6 +132,8 @@ Routes can enforce roles using:
 ```
 The `require_role` dependency ensures only authorized users can access sensitive endpoints.
 
+---
+
 ### Email Notifications (Celery)
 The Auth app sends emails asynchronously using Celery:
 - Activation email
@@ -133,6 +145,8 @@ SMTP is handled by Mailhog during development.
 
 This keeps the API responsive and avoids blocking I/O.
 
+---
+
 ### Auth Architecture Summary
 | Component            | Responsibility                        |
 | -------------------- | ------------------------------------- |
@@ -143,6 +157,8 @@ This keeps the API responsive and avoids blocking I/O.
 | **`get_current_user`** | Validates token & loads user          |
 | **Celery tasks**     | Sends auth‑related emails             |
 | **Token models**     | Activation, reset, refresh tokens     |
+
+---
 
 ### Testing Authentication
 #### Login
@@ -162,6 +178,8 @@ POST /api/v1/cinema/auth/refresh
 POST /api/v1/cinema/auth/logout
 ```
 
+---
+
 ### Summary
 The authentication subsystem is:
 - Modular
@@ -173,7 +191,7 @@ The authentication subsystem is:
 - Production‑ready
 
 It provides a complete foundation for user identity, session management, and secure access control across the entire platform.
----
+
 
 ## ⭐ Users App
 The Users App provides a complete user management subsystem, including user entities, profiles, RBAC (role‑based access control), and a full administrative console for managing users and permissions. It integrates tightly with the **Auth App** and supports both self‑service user operations and privileged admin workflows.
@@ -206,9 +224,11 @@ users/
 └── models.py
 ```
 
+---
+
 ### The Users App handles:
 
-### User Management
+### 1. User Management
 - User creation (via Auth App)
 - User retrieval
 - User activation/deactivation (admin)
@@ -216,14 +236,18 @@ users/
 - Group assignment (RBAC)
 - Listing and filtering users (admin)
 
-### User Profiles
+---
+
+### 2. User Profiles
 - Profile creation
 - Profile update
 - Profile deletion
 - Admin‑level profile creation for other users
 - Avatar upload (S3-compatible storage)
 
-### RBAC (Role‑Based Access Control)
+---
+
+### 3. RBAC (Role‑Based Access Control)
 - Single‑group membership per user
 - Three roles:
   - USER — basic access
@@ -239,7 +263,9 @@ Examples:
 - User management → ADMIN only
 - Profile self‑management → any authenticated user
 
-### Admin Console
+---
+
+### 4. Admin Console
 - Manage users
 - Change user groups
 - Activate/deactivate accounts
@@ -286,7 +312,9 @@ POST /api/v1/cinema/admin/users/{user_id}/reset-password
 ```
 Allows admins to set a new password for any user.
 
-### Admin‑Level Profile Management
+---
+
+### 5. Admin‑Level Profile Management
 
 Admins can create or update profiles for other users:
 ```
@@ -299,7 +327,7 @@ Supports:
 - Updating any user’s profile
 - Deleting any user’s profile
 
-### User Models
+### 6. User Models
 All user‑related models are located in:
 ```
 users/models.py
@@ -333,7 +361,9 @@ Enums are stored separately in:
 users/enums.py
 ```
 
-### User Profiles
+---
+
+### 7. User Profiles
 Users can manage their own profile via:
 ```
 GET    /api/v1/cinema/users/me/profile
@@ -348,7 +378,9 @@ Profile fields include:
 - Info
 - Avatar (uploaded to S3-compatible storage)
 
-### `/users/me` Endpoint
+---
+
+### 8. `/users/me` Endpoint
 Authenticated users can retrieve their own profile and metadata:
 ```
 GET /api/v1/cinema/users/me/
@@ -360,6 +392,8 @@ Response includes:
 - Activation status
 - Timestamps
 
+---
+
 ### Architecture Summary
 | Layer            | Responsibility                              |
 | ---------------- | ------------------------------------------- |
@@ -368,7 +402,10 @@ Response includes:
 | **Repository**   | Database operations (SQLAlchemy)            |
 | **Schemas**      | Request/response validation (Pydantic)      |
 | **Dependencies** | DI wiring for services and repositories     |
+
 This layered structure ensures clarity, testability, and maintainability.
+
+---
 
 ### Summary
 The Users App provides a complete, production‑ready user management system with:
@@ -383,33 +420,18 @@ The Users App provides a complete, production‑ready user management system wit
 
 It integrates seamlessly with the Auth App and the Movies App, forming a cohesive and scalable backend platform.
 
----
+
 
 ## ⭐ Movies App
 
-The Movie Domain provides the foundational data structures and operations for managing movies within the Online Cinema platform. It defines how movies are stored, queried, filtered, and related to other entities such as genres, directors, stars, and certifications. All higher‑level features (likes, ratings, favorites, comments, purchases, moderation) build on top of this core domain.
-
-### Overview
-A Movie represents a film available in the platform’s catalog.
-Each movie includes:
-- Basic metadata (name, year, duration)
-- IMDb and Metascore ratings
-- Financial information (gross revenue, price)
-- Content rating (certification)
-- Relationships to genres, directors, and stars
-- A unique UUID for external references
-
-The domain is designed for:
-- Efficient catalog browsing
-- Flexible filtering and sorting
-- Clean separation of concerns
-- Extensibility for future social and commerce features
+The Movies App provides a complete domain model for movies, metadata, user interactions, and content relationships. It supports catalog browsing, filtering, sorting, reactions, ratings, favorites, and threaded comments. All relationships are explicitly modeled using SQLAlchemy with proper constraints, cascades, and association tables.
 
 ### Directory Structure:
 ```
 movies/
 │
 ├── router.py
+├── genres_router.py
 ├── dependencies.py
 ├── service.py
 ├── repository.py
@@ -419,6 +441,29 @@ movies/
 ├── schemas.py
 └── models.py
 ```
+
+---
+
+### Movie App Models Overview
+All movie‑related models are located in `movies/models.py`
+
+This includes:
+- `Movie`
+- `Genre`
+- `Star`
+- `Director`
+- `Certification`
+- `MovieLike`
+- `MovieRating`
+- `FavoriteMovie`
+- `MovieComment`
+
+Association tables:
+- `MoviesGenresModel`
+- `MoviesStarsModel`
+- `MoviesDirectorsModel`
+
+---
 
 ### Data Model
 Table: `movies`
@@ -437,13 +482,17 @@ Table: `movies`
 | `price`            | `NUMERIC(10,2)`                 | Purchase price                                   |
 | `certification_id` | `INTEGER` (FK → certifications) | Age/content rating                               |
 
+---
+
 ### Constraints
 - Unique Constraint: (`name`, `year`, `time`)
   - Prevents duplicate movie entries.
 - Foreign Key: `certification_id` → `certifications.id`  
   - Ensures valid content rating.
 
-### 🔗 Relationships
+---
+
+### Relationships
 Movies are connected to several domain entities:
 
 #### Genres
@@ -466,6 +515,67 @@ One‑to‑many relationship.
 ```python
 certification: Certification
 ```
+
+---
+
+### User Interaction Models
+The Movies App includes several user‑interaction models that support likes, ratings, favorites, and comments. All of them enforce uniqueness constraints and cascade deletes when a movie or user is removed.
+
+#### Movie Likes
+Users can like or dislike a movie.
+A user can have **only one reaction** per movie.
+```python
+class MovieLike:
+    user_id: int
+    movie_id: int
+    is_like: bool
+```
+Constraints:
+- Unique `(user_id, movie_id)`
+- Cascade delete on user or movie removal
+
+#### Movie Ratings
+Users can rate a movie on a 1–10 scale.
+A user can have **only one rating** per movie.
+```python
+class MovieRating:
+    user_id: int
+    movie_id: int
+    rating: int
+```
+Constraints:
+- Unique `(user_id, movie_id)`
+- Cascade delete on user or movie removal
+
+#### Favorite Movies
+Users can add movies to their favorites list.
+```python
+class FavoriteMovie:
+    user_id: int
+    movie_id: int
+```
+Constraints:
+- Unique `(user_id, movie_id)`
+- Cascade delete on user or movie removal
+
+#### Movie Comments (Threaded)
+Users can leave comments on movies.
+Comments support threaded replies via a **self‑referential** `parent_id`.
+```python
+class MovieComment:
+    id: int
+    movie_id: int
+    user_id: int
+    parent_id: int | None
+    content: str
+```
+Features:
+- Threaded replies (`parent` + `replies`)
+- Cascade delete on movie or user removal
+- Indexed for fast retrieval by movie, parent, and user
+
+---
+
 ### Architecture
 The Movie Domain follows the project’s layered architecture:
 
@@ -493,6 +603,8 @@ Handles database operations:
 
 #### 4. Database Layer
 Stores movies and all related entities with strict referential integrity.
+
+---
 
 ### Catalog Features
 The Movie Domain supports a flexible catalog system with:
@@ -522,8 +634,7 @@ The Movie Domain supports a flexible catalog system with:
 - Efficient offset/limit pagination
 - Consistent ordering via `default_order_by()`
 
-### Testing
-N/A
+---
 
 ### Design Goals
 - Clean domain boundaries  
@@ -534,6 +645,64 @@ N/A
   - Uses optimized SQL queries and eager loading where appropriate.
 - Consistency  
   - All movie data is validated and normalized before persistence.
+
+---
+
+### Movie Model Summary
+The `Movie` model aggregates all relationships:
+```python
+genres: list[Genre]
+stars: list[Star]
+directors: list[Director]
+certification: Certification
+likes: list[MovieLike]
+ratings: list[MovieRating]
+favorites: list[FavoriteMovie]
+comments: list[MovieComment]
+```
+Additional fields:
+- UUID (`uu_id`) generated by PostgreSQL
+- Unique constraint on `(name, year, time)`
+- Default ordering by `id DESC`
+
+---
+
+### Interaction Behavior
+- Deleting a movie removes:
+  - Likes
+  - Ratings
+  - Favorites
+  - Comments
+  - Association table entries
+
+- Deleting a user removes:
+  - Their likes
+  - Their ratings
+  - Their favorites
+  - Their comments
+
+- Moderators and admins can manage movies (CRUD)
+- Users can:
+  - Like/dislike
+  - Rate
+  - Favorite
+  - Comment (with replies)
+  - View reactions and rating summaries
+
+---
+
+### Summary
+The Movies App provides a complete, production‑ready domain model with:
+- Rich metadata (genres, stars, directors, certification)
+- User interactions (likes, ratings, favorites, comments)
+- Threaded comment system
+- Strong relational integrity
+- Proper cascading behavior
+- Optimized indexing for performance
+- Clean SQLAlchemy modeling
+
+This forms the backbone of the Online Cinema platform’s catalog and user engagement features.
+
 
 ## ⭐ Movie Likes Feature
 The Movie Likes subsystem enables authenticated users to express positive or negative reactions to movies. It is designed to be lightweight, scalable, and fully aligned with the project’s layered architecture (Router → Service → Repository → Database). The feature supports liking, disliking, removing reactions, and retrieving aggregated reaction statistics for each movie.
@@ -547,6 +716,8 @@ Users can:
 
 Each user may have **only one reaction per movie**, enforced by a **composite primary key and a unique constraint**.
 
+---
+
 ### Data Model
 The `MovieLike` model represents a user’s reaction to a movie.
 
@@ -559,12 +730,16 @@ Table: `movie_likes`
 | `is_like`    | `BOOLEAN`               | `True` = like, `False` = dislike |
 | `created_at` | `TIMESTAMP WITH TZ`     | Reaction timestamp               |
 
+---
+
 ### Constraints
 - Primary Key: (`user_id`, `movie_id`)
 - Unique Constraint: (`user_id`, `movie_id`)
 - Foreign Keys:
   - `user_id` → `users.id` (CASCADE on delete)
   - `movie_id` → `movies.id` (CASCADE on delete)
+
+---
 
 ### Relationships
 `User` → `MovieLike`:
@@ -579,6 +754,8 @@ movie.likes: list["MovieLike"]
 ```
 
 These relationships are defined using string‑based references to avoid circular imports and maintain clean domain boundaries.
+
+---
 
 ### Architecture
 The feature follows the project’s layered structure:
@@ -607,8 +784,10 @@ Handles database operations:
 - Aggregate likes/dislikes using SQL conditional aggregation
 - Fetch user’s reaction for a movie
 
-4. Database Layer
+#### 4. Database Layer
 Stores reactions in the `movie_likes` table with strict referential integrity.
+
+---
 
 ### Authentication
 All reaction endpoints require a valid Bearer access token.
@@ -616,6 +795,8 @@ The authenticated user is resolved via:
 ```python
 user: Annotated[User, Depends(get_current_user)]
 ```
+
+---
 
 ### Design Goals
 - Idempotent operations  
@@ -627,7 +808,6 @@ user: Annotated[User, Depends(get_current_user)]
 - Scalable  
   - Supports millions of reactions with minimal overhead.
 
----
 
 ## ⭐ Movie Ratings (1–10 Scale)
 The API includes a complete movie rating system that allows authenticated users to rate any movie on a 1–10 scale. Each user can rate a movie only once, and updating a rating simply overwrites the previous value. Ratings are stored efficiently using a composite primary key and exposed through clean, predictable endpoints.
@@ -643,6 +823,8 @@ Users can rate any movie with an integer value from 1 to 10
   - the current user’s rating
 
 This feature integrates seamlessly with the existing movie domain and user authentication system.
+
+---
 
 ### Database Design
 
@@ -665,6 +847,8 @@ This design:
 
 Both foreign keys use `ondelete="CASCADE"`, ensuring that ratings are automatically removed if a user or movie is deleted.
 
+---
+
 ### Rating Summary Logic
 The API computes rating summaries using efficient SQL aggregation:
 - `AVG(rating)` → average rating for the movie
@@ -679,8 +863,12 @@ If no ratings exist, the API returns:
   "user_rating": null
 }
 ```
+
+---
+
 ### API Endpoints
-#### Rate a Movie
+
+#### 1. Rate a Movie
 `POST /movies/{movie_id}/rating`
 ```json
 {
@@ -697,15 +885,17 @@ Response:
 }
 ```
 
-#### Get Rating Summary
+#### 2. Get Rating Summary
 `GET /movies/{movie_id}/rating`
 
 Returns the aggregated rating data for the movie.
 
-#### Delete Rating
+#### 4. Delete Rating
 `DELETE /movies/{movie_id}/rating`
 
 Removes the user’s rating and returns the updated summary.
+
+---
 
 ### Error Handling
 The system uses domain‑level exceptions with FastAPI exception handlers.
@@ -716,6 +906,8 @@ Examples:
 - `401 Unauthorized` — missing or invalid token
 
 This ensures consistent, predictable API responses.
+
+---
 
 ### Integration with the Movie and User Domains
 Ratings are exposed through the `Movie` model:
@@ -739,8 +931,6 @@ This allows:
 - easy access to rating data in higher‑level services
 - clean domain modeling aligned with likes, genres, stars, and directors
 
----
-
 ## ⭐ Movie Favorites
 The API includes a complete Favorites system that allows authenticated users to save movies to their personal favorites list and browse them using the full catalog functionality. Favorites behave like a personalized movie collection with support for search, filtering, sorting, and pagination.
 
@@ -761,6 +951,8 @@ The API includes a complete Favorites system that allows authenticated users to 
 
 This feature integrates seamlessly with the existing movie domain and user authentication system.
 
+---
+
 ### Database Design
 Favorites are stored in the `favorite_movies` table:
 
@@ -773,15 +965,18 @@ Favorites are stored in the `favorite_movies` table:
 #### Why a composite primary key
 The combination of `(user_id, movie_id)` uniquely identifies a favorite entry.
 This design:
-- enforces “one favorite per user per movie” at the database level
+- enforces “**one favorite per user per movie**” at the database level
 - avoids unnecessary surrogate IDs
-- improves lookup performance
+- **improves lookup performance**
 - simplifies the domain model
 
 Both foreign keys use `ondelete="CASCADE"`, ensuring favorites are automatically removed if a user or movie is deleted.
 
+---
+
 ### API Endpoints
-#### Add to Favorites
+
+#### 1. Add to Favorites
 `POST /movies/{movie_id}/favorite`
 ```json
 {
@@ -790,7 +985,7 @@ Both foreign keys use `ondelete="CASCADE"`, ensuring favorites are automatically
 }
 ```
 
-#### Remove from Favorites
+#### 2. Remove from Favorites
 `DELETE /movies/{movie_id}/favorite`
 ```json
 {
@@ -799,7 +994,7 @@ Both foreign keys use `ondelete="CASCADE"`, ensuring favorites are automatically
 }
 ```
 
-### List Favorite Movies
+#### 3. List Favorite Movies
 `GET /movies/favorites`
 
 Supports all catalog parameters:
@@ -825,6 +1020,8 @@ Response (FastAPI Pagination):
 }
 ```
 
+---
+
 ### How Favorites Integrate with Filtering & Sorting
 The favorites list uses the same filtering and sorting logic as the main movie catalog.
 This is achieved by:
@@ -839,6 +1036,8 @@ select(Movie)
 - Applying search, genre filters, year filters, IMDb filters, price filters, and sorting on top of the favorites query.
 
 This keeps the architecture clean, modular, and consistent.
+
+---
 
 ### Integration with the Movie and User Domains
 Favorites are exposed through the `Movie` and `User` models:
@@ -869,13 +1068,15 @@ The API automatically annotates each movie with an `is_favorite` flag, allowing 
 
 This makes it easy for frontends to display “favorite” icons, highlight saved movies, or toggle favorites without additional API calls.
 
-### How It Works
+### Feature Overview
 When a user is authenticated, the API:
 - Retrieves the user’s favorite movie IDs
 - Annotates each movie in the list with `is_favorite`: true or false
 - Annotates the movie detail response with the same flag
 
 This ensures consistent behavior across all endpoints.
+
+---
 
 ### Movie List Response Example
 `GET /movies?sort_by=imdb&order=desc&page=1&size=20`
@@ -910,6 +1111,8 @@ This ensures consistent behavior across all endpoints.
 - Pagination and filtering
 - No additional API calls are required to determine favorite status
 
+---
+
 ### Movie Detail Response Example
 `GET /movies/102`
 ```json
@@ -938,6 +1141,8 @@ This ensures consistent behavior across all endpoints.
 - This allows frontends to show a filled/empty “favorite” icon
 - No need to call `/movies/{id}/favorite` just to check status
 
+---
+
 ### Implementation Notes
 - The `is_favorite` flag is computed efficiently using a **bulk lookup of the user’s favorite movie IDs**.
 - No N+1 queries are performed.
@@ -946,8 +1151,6 @@ This ensures consistent behavior across all endpoints.
   - movie list
   - movie detail
   - favorites list
-
----
 
 ## ⭐ Movie Comments: Threaded Replies + Real‑Time Notifications
 The Online Cinema platform includes a fully‑featured movie comments system with:
@@ -972,6 +1175,8 @@ Components involved:
 | **`ConnectionManager`**  | Tracks active user WebSocket sessions                   |
 | **JWT WebSocket Auth** | Validates tokens passed via query params                |
 
+---
+
 ### `MovieComment` Model & Database Design
 The MovieComment model is the backbone of the commenting system. It supports **threaded replies, cascade deletion, fast lookups**, and **clean relational integrity**.
 
@@ -987,6 +1192,8 @@ Each comment is represented by a MovieComment record with the following fields:
 | `content`    | `text`     | Comment text     |                                           |
 | `created_at` | `datetime` | Timestamp (UTC)  |                                           |
 | `updated_at` | `datetime` | Timestamp (UTC)  |                                          `
+
+---
 
 ### Relationships
 #### 1. Movie → Comments
@@ -1014,6 +1221,8 @@ This means:
 - A comment may have zero or many replies
 - Replies can be nested indefinitely (though UI typically limits depth)
 
+---
+
 ### Cascade Behavior
 All foreign keys use `ON DELETE CASCADE`:
 - Deleting a **movie** removes all its comments
@@ -1021,6 +1230,8 @@ All foreign keys use `ON DELETE CASCADE`:
 - Deleting a **parent** comment removes all nested replies
 
 This ensures the database stays clean without orphaned records.
+
+---
 
 ### Indexing Strategy
 To support fast queries, especially on large datasets, the following indexes are created:
@@ -1034,8 +1245,10 @@ These indexes dramatically improve performance for:
 - Fetching replies for a comment
 - Moderation tools (e.g., “show all comments by user”)
 
+---
 
 ### Commenting Flow
+
 #### 1. User posts a top‑level comment
 `POST /api/v1/cinema/movies/{movie_id}/comments`
 - Comment is stored in DB
@@ -1056,6 +1269,8 @@ When a reply is created:
 - The parent comment’s author receives an email notification
 - If the parent author is connected via WebSocket, they receive a real‑time push notification
 
+---
+
 ### Email Notifications (Celery + Mailhog)
 Reply notifications are sent asynchronously using Celery:
 - Task: `send_comment_reply_notification`
@@ -1064,6 +1279,8 @@ Reply notifications are sent asynchronously using Celery:
 - View emails at: `http://localhost:8025`
 
 This ensures the API remains fast and responsive.
+
+---
 
 ### Real‑Time Notifications (WebSocket)
 Users can subscribe to comment notifications via:
@@ -1088,6 +1305,9 @@ ws://localhost:8000/api/v1/cinema/ws/comments?token=<JWT>
   "created_at": "2026-02-24T10:15:00Z"
 }
 ```
+
+---
+
 ### WebSocket Authentication
 WebSockets do not support FastAPI’s dependency injection for OAuth2, so authentication is handled manually:
 - Client passes `?token=<JWT>` in the URL
@@ -1097,7 +1317,10 @@ WebSockets do not support FastAPI’s dependency injection for OAuth2, so authen
 
 This approach is robust and production‑safe.
 
+---
+
 ### Testing the Feature
+
 #### 1. Connect WebSocket (Browser Console)
 ```js
 const token = "<JWT>";
@@ -1132,6 +1355,8 @@ Expected results:
 - Email appears in Mailhog
 - WebSocket receives a JSON notification
 
+---
+
 ### Connection Manager
 The WebSocket manager tracks active connections:
 - `user_id → [WebSocket, WebSocket, ...]`
@@ -1141,6 +1366,8 @@ The WebSocket manager tracks active connections:
 
 This makes the system horizontally scalable.
 
+---
+
 ### Summary
 This feature delivers a complete, modern commenting experience:
 - Threaded replies
@@ -1149,7 +1376,6 @@ This feature delivers a complete, modern commenting experience:
 - Clean architecture
 - Production‑ready error handling
 - Fully testable with Postman + Mailhog + browser console
----
 
 ## ⭐ Database Migrations (Local + Docker)
 This project uses Alembic for SQLAlchemy schema migrations.
@@ -1161,6 +1387,8 @@ This section explains:
 - How Docker applies them
 - Why two Alembic config files exist
 - How the project structure is wired
+
+---
 
 ### Project Structure (relevant to Alembic)
 ```
@@ -1181,6 +1409,9 @@ project/
 ├── alembic.local.ini        # Local Alembic config
 └── docker-compose.yml
 ```
+
+---
+
 ### Why Two Alembic Config Files
 - `alembic.local.ini`
 
@@ -1198,6 +1429,8 @@ It connects to the Docker Postgres service:
 sqlalchemy.url = postgresql://cinema_user:cinema_password@<db-servie-name>:5432/cinema_db
 ```
 
+---
+
 ### Local Migration Workflow
 1. Ensure local PostgreSQL is running
 2. Generate a migration:
@@ -1208,7 +1441,10 @@ poetry run alembic -c alembic.local.ini revision --autogenerate -m "message"
 3. Review the generated file in `alembic/versions/`
 4. Commit it to Git
 
+---
+
 ### 🐳 Docker Migration Workflow
+
 Docker uses a dedicated migrator service:
 ```yml
 migrator:
@@ -1260,6 +1496,8 @@ Used by developers to view captured emails.
 
 These two interfaces are completely independent.
 
+---
+
 ### MailHog Authentication Explained
 MailHog supports only HTTP UI authentication, not SMTP authentication.
 
@@ -1292,7 +1530,10 @@ MailHog does not support:
 
 Any attempt to use TLS or SMTP auth will fail.
 
-### ⚙️ FastAPI Email Configuration
+---
+
+### FastAPI Email Configuration
+
 The backend loads SMTP settings from `.env`:
 ```
 SMTP_SERVER=cinema-mailhog
@@ -1320,6 +1561,8 @@ This allows the `EmailSender` to work with both:
 
 without any code changes.
 
+---
+
 ### Running MailHog
 MailHog is included in `docker-compose.yml`:
 ```yml
@@ -1344,6 +1587,8 @@ http://localhost:8025
 ```
 MAILHOG_USER / MAILHOG_PASSWORD
 ```
+
+---
 
 ### Testing Email Delivery
 - Register a new user or trigger a password reset
@@ -1410,7 +1655,10 @@ These are required for RBAC and admin console functionality.
 #### 6. Commit all changes
 All inserts and associations are committed in a single transaction.
 
+---
+
 ### Configuration
+
 Paths to JSON files are defined in:
 ```
 config.py
@@ -1424,6 +1672,8 @@ STARS_JSON_PATH = "src/seeding/seed_data/stars.json"
 DIRECTORS_JSON_PATH = "src/seeding/seed_data/directors.json"
 ```
 These can be overridden via `.env` if needed.
+
+---
 
 ### JSON Generation
 The generator (`JsonDataGenerator`) creates:
@@ -1450,6 +1700,8 @@ Randomized fields:
 #### Stars & Directors
 Fetched from `randomuser.me` with fallback names.
 
+---
+
 ### Database Population
 The seeder (`InitialDatabaseSeeder`) performs:
 
@@ -1473,6 +1725,8 @@ Ensures RBAC groups exist:
 USER, MODERATOR, ADMIN
 ```
 
+---
+
 ### Running the Seeder
 Run the seeding script:
 ```
@@ -1486,6 +1740,8 @@ This will:
 
 The process is **fully asynchronous** and **logs progress to the console**.
 
+---
+
 ### Architecture Summary
 | Component               | Responsibility                                                               |
 | ----------------------- | ---------------------------------------------------------------------------- |
@@ -1494,6 +1750,8 @@ The process is **fully asynchronous** and **logs progress to the console**.
 | `config.py`             | Defines paths to seed files and environment configuration                    |
 | `seed_data/`            | Stores generated JSON files                                                  |
 | `populate_db.py`        | Orchestrates the entire seeding process                                      |
+
+---
 
 ### Summary
 The seeding system provides:
