@@ -1,9 +1,9 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from config import get_settings
+from config import get_settings, BaseAppSettings
 from database import get_db
 from logger_config import get_logger
 from exceptions import InvalidTokenError, TokenExpiredError
@@ -11,34 +11,19 @@ from users.models import User, UserGroupEnum
 from auth.interfaces import JWTAuthManagerInterface
 from auth.token_manager import JWTAuthManager
 from auth.repository import AuthRepository
-from config import BaseAppSettings
 from auth.service import AuthService
-from auth.interfaces import EmailSenderInterface
-from auth.email_manager import EmailSender
+from notifications.interfaces import EmailSenderInterface
+from notifications.dependencies import get_auth_email_sender
+
+
+bearer_scheme = HTTPBearer()
 
 log = get_logger()
-
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 def get_auth_repository(db: AsyncSession = Depends(get_db)) -> AuthRepository:
     return AuthRepository(db)
 
-
-def get_email_sender(settings: BaseAppSettings = Depends(get_settings)):
-    return EmailSender(
-        hostname=settings.SMTP_SERVER,
-        port=settings.SMTP_PORT,
-        username=settings.SMTP_USERNAME,
-        password=settings.SMTP_PASSWORD,
-        use_tls=settings.SMTP_USE_TLS,
-        template_dir=settings.PATH_TO_EMAIL_TEMPLATES_DIR,
-        activation_email_template_name=settings.ACTIVATION_EMAIL_TEMPLATE_NAME,
-        activation_complete_email_template_name=settings.ACTIVATION_COMPLETE_EMAIL_TEMPLATE_NAME,
-        password_email_template_name=settings.PASSWORD_RESET_TEMPLATE_NAME,
-        password_complete_email_template_name=settings.PASSWORD_RESET_COMPLETE_TEMPLATE_NAME,
-    )
 
 def get_jwt_auth_manager(
     settings: BaseAppSettings = Depends(get_settings)
@@ -64,13 +49,15 @@ def get_jwt_auth_manager(
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     db: AsyncSession = Depends(get_db)
 ) -> User:
     """
     Extracts and returns the authenticated user based on the access token.
     """
+    token = credentials.credentials
+
     try:
         payload = jwt_manager.decode_access_token(token)
     except TokenExpiredError:
@@ -155,7 +142,7 @@ def require_role(*allowed_roles: UserGroupEnum):
 def get_auth_service(
     auth: AuthRepository = Depends(get_auth_repository),
     jwt = Depends(get_jwt_auth_manager),
-    email_sender: EmailSenderInterface = Depends(get_email_sender)
+    email_sender: EmailSenderInterface = Depends(get_auth_email_sender)
 ) -> AuthService:
     return AuthService(
         auth=auth,

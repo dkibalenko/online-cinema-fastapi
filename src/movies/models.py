@@ -16,7 +16,8 @@ from sqlalchemy import (
     Table,
     Column,
     DateTime,
-    Boolean
+    Boolean,
+    Index,
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.sql import func
@@ -189,6 +190,11 @@ class Movie(Base):
         back_populates="movie",
         cascade="all, delete-orphan"
     )
+    comments: Mapped[list["MovieComment"]] = relationship(
+        "MovieComment",
+        back_populates="movie",
+        cascade="all, delete-orphan"
+    )
 
     @classmethod
     def default_order_by(cls):
@@ -300,6 +306,53 @@ class FavoriteMovie(Base):
         return (
             f"FavoriteMovie(user_id={self.user_id}, movie_id={self.movie_id})"
         )
+
+
+class MovieComment(Base):
+    __tablename__ = "movie_comments"
+    __table_args__ = (
+        Index("ix_movie_comments_movie_id", "movie_id"),
+        Index("ix_movie_comments_parent_id", "parent_id"),
+        Index("ix_movie_comments_user_id", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    movie_id: Mapped[int] = mapped_column(
+        ForeignKey("movies.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("movie_comments.id", ondelete="CASCADE"),  # self-referential
+        nullable=True
+    )
+
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        # onupdate=lambda: datetime.now(timezone.utc),  # is handled by Postgres
+        nullable=False
+    )
+
+    # creates: 1. 'parent' attribute on each comment('comment.parent' returns the parent MovieComment or None)
+    # 2. replies collection on each comment(automatically created by backref)
+    parent = relationship("MovieComment", remote_side=[id], backref="replies")
+    movie = relationship("Movie", back_populates="comments")
+    user = relationship("User", back_populates="movie_comments")
 
 
 class Certification(Base):

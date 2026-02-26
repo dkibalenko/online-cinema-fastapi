@@ -1,61 +1,40 @@
 # Online Cinema
 
-This project is an actively developed, production‑grade RESTful API built with FastAPI, SQLAlchemy 2.0, Celery, Redis, PostgreSQL, and MinIO.  
+This project is an actively developed, production‑grade RESTful API built with FastAPI, SQLAlchemy 2.0, Celery, Redis, PostgreSQL, Docker, MinIO, MailHog and many other tools.  
 It already includes a complete authentication system, user management, movie catalog with genres/stars/directors, likes, ratings, email workflows, and a fully containerized multi‑service architecture.
 
-I continue expanding the system daily — CI/CD, deployment, and automated test coverage are next on the roadmap. The goal is to demonstrate real backend engineering practices, not just CRUD endpoints.
+I continue expanding the system daily — CI/CD, deployment, and automated test coverage are next on the roadmap. The goal is to **demonstrate real backend engineering practices**, not just CRUD endpoints.
 
 An online cinema is a digital platform that allows users to select, watch, and purchase access to movies and other video materials via the internet.
 
-## ⭐ Authentication & User Management
+---
 
-The project uses a clean domain‑based architecture with separate apps:
+## ⭐ Authentication System
+The authentication subsystem provides a complete, secure, and production‑ready identity flow for the Online Cinema platform. It includes user onboarding, JWT‑based authentication, role‑based access control, and asynchronous email notifications.
 
-- `auth/` — authentication, tokens, login, registration
-- `users/` — user identity, profiles, roles (RBAC)
-
-This separation keeps the codebase maintainable and avoids circular imports.
-
-### Directory Structure
-```
-src/
-  __init__.py
-  auth/
-    __init__.py
-    router.py
-    service.py
-    repository.py
-    dependencies.py
-    models.py
-  users/
-    __init__.py
-    router.py
-    service.py
-    repository.py
-    dependencies.py
-    models.py
-    enums.py
-    validators.py
-    utils.py
-```
-### ⭐ Auth App
-The auth app handles:
+### Features Overview
+The Auth app handles:
 - User registration
-- Email activation
-- Login
-- Refresh tokens
-- Logout
+- Email activation (activation token + Celery email)
+- Login (JWT access + refresh tokens)
+- Refresh token rotation
+- Logout (refresh token invalidation)
 - Password reset (request + complete)
 - Password change
 - Token validation
 - Email notifications via Celery
+- Role‑based access control (RBAC)
 
-#### Token Models
+All flows are designed to be secure, scalable, and easy to integrate with other services.
 
-All token models inherit from a shared TokenBaseModel:
-- `ActivationToken`
-- `PasswordResetToken`
-- `RefreshToken`
+### Token Models
+
+All token types inherit from a shared `TokenBaseModel`, ensuring consistency and reducing duplication.
+
+Token types include:
+- `ActivationToken` — sent during registration
+- `PasswordResetToken` — used for password recovery
+- `RefreshToken` — stored in DB for session management
 
 They are stored in a single module:
 ```
@@ -63,59 +42,346 @@ auth/models.py
 ```
 This keeps the authentication domain cohesive and avoids fragmentation.
 
-#### JWT Authentication
+### JWT Authentication
+The system uses a two‑token strategy:
+#### Access Token
+- Short‑lived
+- Encodes user ID, token type, and expiration
+- Used for authenticating API requests
+- Verified using get_current_user
 
-The project uses:
-- Access tokens (short‑lived)
-- Refresh tokens (stored in DB)
-- Role‑based access control (RBAC)
+#### Refresh Token
+- Long‑lived
+- Stored in the database
+- Rotated on each refresh
+- Invalidated on logout
+- Prevents replay attacks
 
-`get_current_user` decodes the access token and loads the user from the database.
+Token Payload Example:
+```json
+{
+  "user_id": 1,
+  "type": "access",
+  "exp": 1771927955
+}
+```
+### Authentication Flow
+#### 1. Registration
+User submits email + password → receives activation email.
 
-### ⭐ Users App
-The users app manages:
-- User entity
-- User groups (RBAC)
-- User profiles
+#### 2. Email Activation
+User clicks activation link → account becomes active.
+
+#### 3. Login
+User receives:
+- access_token
+- refresh_token
+
+#### 4. Authenticated Requests
+Clients send:
+```
+Authorization: Bearer <access_token>
+```
+#### 5. Token Refresh
+Client exchanges refresh token for new tokens.
+
+#### 6. Logout
+Refresh token is deleted from DB.
+
+### HTTP Bearer Authentication (Swagger‑Friendly)
+The project uses HTTPBearer for token extraction:
+```python
+from fastapi.security import HTTPBearer
+
+bearer_scheme = HTTPBearer()
+```
+This provides:
+- Clean Swagger UI (“Bearer Token” input)
+- No OAuth2 password flow confusion
+- Simple extraction of `Authorization: Bearer <token>`
+
+#### `get_current_user` Flow
+- Extract token from header
+- Decode JWT
+- Validate token type
+- Load user from DB
+- Check activation status
+- Return authenticated user
+
+This dependency powers all protected routes.
+
+### Role‑Based Access Control (RBAC)
+Roles are defined in `UserGroupEnum`:
+- ADMIN
+- MODERATOR
+- USER
+
+Routes can enforce roles using:
+```python
+@router.post("/movies", dependencies=[Depends(require_role(UserGroupEnum.ADMIN))])
+```
+The `require_role` dependency ensures only authorized users can access sensitive endpoints.
+
+### Email Notifications (Celery)
+The Auth app sends emails asynchronously using Celery:
+- Activation email
+- Password reset email
+- Password reset confirmation
+- Activation confirmation
+
+SMTP is handled by Mailhog during development.
+
+This keeps the API responsive and avoids blocking I/O.
+
+### Auth Architecture Summary
+| Component            | Responsibility                        |
+| -------------------- | ------------------------------------- |
+| **`JWTAuthManager`**   | Encode/decode access & refresh tokens |
+| **`AuthRepository`**   | DB operations for users & tokens      |
+| **`AuthService`**      | High‑level auth logic                 |
+| **`HTTPBearer`**       | Extracts JWT from headers             |
+| **`get_current_user`** | Validates token & loads user          |
+| **Celery tasks**     | Sends auth‑related emails             |
+| **Token models**     | Activation, reset, refresh tokens     |
+
+### Testing Authentication
+#### Login
+```
+POST /api/v1/cinema/auth/login
+```
+#### Use token in Swagger
+```
+Authorize → Bearer Token → <access_token>
+```
+#### Refresh token
+```
+POST /api/v1/cinema/auth/refresh
+```
+#### Logout
+```
+POST /api/v1/cinema/auth/logout
+```
+
+### Summary
+The authentication subsystem is:
+- Modular
+- Secure
+- JWT‑based
+- Role‑aware
+- Asynchronous
+- Swagger‑friendly
+- Production‑ready
+
+It provides a complete foundation for user identity, session management, and secure access control across the entire platform.
+---
+
+## ⭐ Users App
+The Users App provides a complete user management subsystem, including user entities, profiles, RBAC (role‑based access control), and a full administrative console for managing users and permissions. It integrates tightly with the **Auth App** and supports both self‑service user operations and privileged admin workflows.
+
+### Directory Structure:
+```
+users/
+│
+├── admin/
+│   ├── services/
+│   │   ├── user_service.py
+│   │   └── profile_service.py
+│   |
+│   ├── repositories/
+│   │   ├── users.py
+│   │   └── profiles.py
+│   |
+│   ├── router.py
+│   ├── schemas.py
+│   └── dependencies.py
+│
+├── router.py
+├── dependencies.py
+├── service.py
+├── repository.py
+├── exceptions.py
+├── utils.py
+├── filters.py
+├── schemas.py
+└── models.py
+```
+
+### The Users App handles:
+
+### User Management
+- User creation (via Auth App)
+- User retrieval
+- User activation/deactivation (admin)
+- Password reset (admin)
+- Group assignment (RBAC)
+- Listing and filtering users (admin)
+
+### User Profiles
 - Profile creation
-- Profile retrieval
-- `/users/me` endpoint
+- Profile update
+- Profile deletion
+- Admin‑level profile creation for other users
+- Avatar upload (S3-compatible storage)
 
-#### User Models
-All user‑related models live in one file:
+### RBAC (Role‑Based Access Control)
+- Single‑group membership per user
+- Three roles:
+  - USER — basic access
+  - MODERATOR — content management (movies, genres, actors, etc.)
+  - ADMIN — full administrative privileges
+
+Enforced via `require_role()` dependency:
+```python
+Depends(require_role(UserGroupEnum.ADMIN))
+```
+Examples:
+- Movie creation/update/delete → MODERATOR or ADMIN
+- User management → ADMIN only
+- Profile self‑management → any authenticated user
+
+### Admin Console
+- Manage users
+- Change user groups
+- Activate/deactivate accounts
+- Reset passwords
+- Create/update/delete profiles for any user
+- Filter users by:
+- Email
+- Group
+- Activation status
+- Paginated user listing
+
+#### Paginated User Listing
+```
+GET /api/v1/cinema/admin/users
+```
+Supports filtering by:
+- `email` (substring match)
+- `group` (`USER`, `MODERATOR`, `ADMIN`)
+- `is_active` (`True`/`False`)
+
+Returns a paginated list of users.
+
+#### Change User Group
+```
+PATCH /api/v1/cinema/admin/users/{user_id}/group
+```
+Assigns a new group to a user.
+
+#### Activate User
+```
+POST /api/v1/cinema/admin/users/{user_id}/activate
+```
+Sets `is_active = True`.
+
+#### Deactivate User
+```
+POST /api/v1/cinema/admin/users/{user_id}/deactivate
+```
+Sets `is_active = False`.
+
+#### Reset User Password (Admin)
+```
+POST /api/v1/cinema/admin/users/{user_id}/reset-password
+```
+Allows admins to set a new password for any user.
+
+### Admin‑Level Profile Management
+
+Admins can create or update profiles for other users:
+```
+POST   /api/v1/cinema/admin/users/{user_id}/profile
+PATCH  /api/v1/cinema/admin/users/{user_id}/profile
+DELETE /api/v1/cinema/admin/users/{user_id}/profile
+```
+Supports:
+- Creating profiles for users without one
+- Updating any user’s profile
+- Deleting any user’s profile
+
+### User Models
+All user‑related models are located in:
 ```
 users/models.py
 ```
 This includes:
-- `User`
-- `UserGroup`
-- `UserProfile`
 
-Enums are stored separately:
-```
-users/enums.py
-```
+#### `User`
+- Email
+- Password hash
+- Activation status
+- Group (RBAC)
+- Profile (1:1)
+- Refresh tokens
+- Likes, ratings, favorites
+- Comments
 
-#### User Profiles
-Users can create a profile with:
+#### `UserGroup`
+- Defines available roles (`USER`, `MODERATOR`, `ADMIN`)
+- One‑to‑many relationship with users
+
+#### `UserProfile`
 - First name
 - Last name
 - Gender
 - Birth date
 - Info
-- Avatar (uploaded to S3)
+- Avatar URL (S3)
 
-Admins can create profiles for other users.
+Enums are stored separately in:
+```
+users/enums.py
+```
 
-#### `/users/me` Endpoint
-Authenticated users can retrieve their own profile:
+### User Profiles
+Users can manage their own profile via:
+```
+GET    /api/v1/cinema/users/me/profile
+PATCH  /api/v1/cinema/users/me/profile
+DELETE /api/v1/cinema/users/me/profile
+```
+Profile fields include:
+- First name
+- Last name
+- Gender
+- Birth date
+- Info
+- Avatar (uploaded to S3-compatible storage)
+
+### `/users/me` Endpoint
+Authenticated users can retrieve their own profile and metadata:
 ```
 GET /api/v1/cinema/users/me/
 ```
-Returns:
+Response includes:
 - Profile data
 - Avatar URL
-- User metadata
+- User group
+- Activation status
+- Timestamps
+
+### Architecture Summary
+| Layer            | Responsibility                              |
+| ---------------- | ------------------------------------------- |
+| **Router**       | Defines API endpoints and RBAC requirements |
+| **Service**      | Business logic, validation, orchestration   |
+| **Repository**   | Database operations (SQLAlchemy)            |
+| **Schemas**      | Request/response validation (Pydantic)      |
+| **Dependencies** | DI wiring for services and repositories     |
+This layered structure ensures clarity, testability, and maintainability.
+
+### Summary
+The Users App provides a complete, production‑ready user management system with:
+- Full CRUD for user profiles
+- Strong RBAC enforcement
+- Moderator and admin privilege separation
+- A robust admin console for managing users
+- Password resets, activation, deactivation
+- Filtering and pagination for large user bases
+- Admin‑level profile creation, update, and deletion
+- Clean layered architecture
+
+It integrates seamlessly with the Auth App and the Movies App, forming a cohesive and scalable backend platform.
 
 ---
 
@@ -257,6 +523,7 @@ The Movie Domain supports a flexible catalog system with:
 - Consistent ordering via `default_order_by()`
 
 ### Testing
+N/A
 
 ### Design Goals
 - Clean domain boundaries  
@@ -682,6 +949,208 @@ This ensures consistent behavior across all endpoints.
 
 ---
 
+## ⭐ Movie Comments: Threaded Replies + Real‑Time Notifications
+The Online Cinema platform includes a fully‑featured movie comments system with:
+- Threaded (nested) replies
+- Email notifications for comment replies (via Celery + Mailhog)
+- Real‑time WebSocket notifications for online users
+- JWT‑authenticated WebSocket connections
+- Cascade deletion and clean relational structure
+- Production‑grade error handling and connection management
+
+This subsystem is designed for scalability, clarity, and maintainability.
+
+### Architecture Overview
+Components involved:
+| Component              | Responsibility                                          |
+| ---------------------- | ------------------------------------------------------- |
+| **`MovieComment` model** | Stores comments, replies, timestamps, and relationships |
+| **`MovieService`**       | Business logic for creating and listing comments        |
+| **Celery Worker**      | Sends email notifications asynchronously                |
+| **Mailhog**            | Local SMTP server for testing email delivery            |
+| **WebSocket Router**   | Handles authenticated WS connections                    |
+| **`ConnectionManager`**  | Tracks active user WebSocket sessions                   |
+| **JWT WebSocket Auth** | Validates tokens passed via query params                |
+
+### `MovieComment` Model & Database Design
+The MovieComment model is the backbone of the commenting system. It supports **threaded replies, cascade deletion, fast lookups**, and **clean relational integrity**.
+
+This section documents the model’s structure, relationships, and indexing strategy.
+
+Each comment is represented by a MovieComment record with the following fields:
+| Field        | Type       | Description      |                                           |
+| ------------ | ---------- | ---------------- | ----------------------------------------- |
+| `id`         | `int`      | Primary key      |                                           |
+| `movie_id`   | `int`      | FK → `movies.id` |                                           |
+| `user_id`    | `int`      | FK → `users.id`  |                                           |
+| `parent_id`  | `int`      | `null`           | Self‑referential FK → `movie_comments.id` |
+| `content`    | `text`     | Comment text     |                                           |
+| `created_at` | `datetime` | Timestamp (UTC)  |                                           |
+| `updated_at` | `datetime` | Timestamp (UTC)  |                                          `
+
+### Relationships
+#### 1. Movie → Comments
+
+A movie can have many comments:
+```python
+movie = relationship("Movie", back_populates="comments")
+```
+#### 2. User → Comments
+A user can author many comments:
+```python
+user = relationship("User", back_populates="movie_comments")
+```
+#### 3. Self‑referential Parent → Replies
+This is what enables threaded replies:
+```python
+parent = relationship(
+    "MovieComment",
+    remote_side=[id],
+    backref="replies"
+)
+```
+This means:
+- A comment may have zero or one parent
+- A comment may have zero or many replies
+- Replies can be nested indefinitely (though UI typically limits depth)
+
+### Cascade Behavior
+All foreign keys use `ON DELETE CASCADE`:
+- Deleting a **movie** removes all its comments
+- Deleting a **user** removes all their comments
+- Deleting a **parent** comment removes all nested replies
+
+This ensures the database stays clean without orphaned records.
+
+### Indexing Strategy
+To support fast queries, especially on large datasets, the following indexes are created:
+| Index                         | Column      | Purpose                                                |
+| ----------------------------- | ----------- | ------------------------------------------------------ |
+| `ix_movie_comments_movie_id`  | `movie_id`  | Fast lookup of comments for a movie                    |
+| `ix_movie_comments_parent_id` | `parent_id` | Fast lookup of replies                                 |
+| `ix_movie_comments_user_id`   | `user_id`   | Fast lookup of comments by user (moderation, profiles) |
+These indexes dramatically improve performance for:
+- Listing comments for a movie
+- Fetching replies for a comment
+- Moderation tools (e.g., “show all comments by user”)
+
+
+### Commenting Flow
+#### 1. User posts a top‑level comment
+`POST /api/v1/cinema/movies/{movie_id}/comments`
+- Comment is stored in DB
+- No notifications are sent
+- Response includes comment metadata
+
+#### 2. User posts a reply
+`POST /api/v1/cinema/movies/{movie_id}/comments`
+
+Payload example:
+```json
+{
+  "content": "This is a reply!",
+  "parent_id": 42
+}
+```
+When a reply is created:
+- The parent comment’s author receives an email notification
+- If the parent author is connected via WebSocket, they receive a real‑time push notification
+
+### Email Notifications (Celery + Mailhog)
+Reply notifications are sent asynchronously using Celery:
+- Task: `send_comment_reply_notification`
+- Template: `comment_reply.html`
+- SMTP: Mailhog (`localhost:1025`)
+- View emails at: `http://localhost:8025`
+
+This ensures the API remains fast and responsive.
+
+### Real‑Time Notifications (WebSocket)
+Users can subscribe to comment notifications via:
+```
+ws://localhost:8000/api/v1/cinema/ws/comments?token=<JWT>
+```
+
+#### **Features**:
+- **JWT authentication** (token passed via query param)
+- **Multiple simultaneous connections per user**
+- **Automatic cleanup on disconnect**
+- **JSON‑formatted notification payloads**
+
+#### Example WebSocket message:
+```json
+{
+  "type": "comment_reply",
+  "movie_id": 1,
+  "comment_id": 57,
+  "parent_id": 42,
+  "content": "Replying to your comment!",
+  "created_at": "2026-02-24T10:15:00Z"
+}
+```
+### WebSocket Authentication
+WebSockets do not support FastAPI’s dependency injection for OAuth2, so authentication is handled manually:
+- Client passes `?token=<JWT>` in the URL
+- Server decodes and validates the token
+- User is loaded from the database
+- Invalid tokens result in a clean WebSocket close (`1008`)
+
+This approach is robust and production‑safe.
+
+### Testing the Feature
+#### 1. Connect WebSocket (Browser Console)
+```js
+const token = "<JWT>";
+const ws = new WebSocket(`ws://localhost:8000/api/v1/cinema/ws/comments?token=${token}`);
+
+ws.onopen = () => console.log("Connected");
+ws.onmessage = (e) => console.log("WS Notification:", JSON.parse(e.data));
+ws.onclose = () => console.log("Closed");
+```
+
+#### 2. Add a top‑level comment (Postman)
+```
+POST /api/v1/cinema/movies/1/comments
+Authorization: Bearer <JWT>
+
+{
+  "content": "Great movie!"
+}
+```
+
+#### 3. Add a reply (Postman)
+```
+POST /api/v1/cinema/movies/1/comments
+Authorization: Bearer <JWT>
+
+{
+  "content": "I agree!",
+  "parent_id": 1
+}
+```
+Expected results:
+- Email appears in Mailhog
+- WebSocket receives a JSON notification
+
+### Connection Manager
+The WebSocket manager tracks active connections:
+- `user_id → [WebSocket, WebSocket, ...]`
+- Supports multiple browser tabs
+- Sends notifications to all active sessions
+- Cleans up on disconnect
+
+This makes the system horizontally scalable.
+
+### Summary
+This feature delivers a complete, modern commenting experience:
+- Threaded replies
+- Email notifications
+- Real‑time WebSocket updates
+- Clean architecture
+- Production‑ready error handling
+- Fully testable with Postman + Mailhog + browser console
+---
+
 ## ⭐ Database Migrations (Local + Docker)
 This project uses Alembic for SQLAlchemy schema migrations.
 Migrations are generated locally and applied inside Docker using a dedicated migrator service.
@@ -693,7 +1162,7 @@ This section explains:
 - Why two Alembic config files exist
 - How the project structure is wired
 
-### 🔧 Project Structure (relevant to Alembic)
+### Project Structure (relevant to Alembic)
 ```
 project/
 │
@@ -883,3 +1352,157 @@ MAILHOG_USER / MAILHOG_PASSWORD
 - Inspect HTML templates, links, and formatting
 
 No real emails are sent.
+
+## ⭐ Database Seeding System
+The project includes a complete, asynchronous database seeding system designed to populate the initial dataset for the Online Cinema platform. It generates JSON seed files (if missing) and loads them into the database in a safe, idempotent way.
+
+The seeding system is fully automated and can be run at any time without duplicating data.
+
+### What the Seeder Does
+The seeding system performs the following tasks:
+
+#### 1. Generate JSON seed files (if missing)
+The generator creates structured JSON files for:
+- Certifications
+- Genres
+- Movies
+- Stars
+- Directors
+
+These files are stored under:
+```
+src/seeding/seed_data/
+```
+If any file is missing, it will be generated automatically.
+
+#### 2. Fetch random names for stars and directors
+The generator uses:
+```
+https://randomuser.me/api/
+```
+to fetch realistic names.
+If the API is unavailable, it falls back to a predefined list of names.
+
+#### 3. Insert base data into the database
+The seeder loads JSON files and inserts:
+- Certifications
+- Genres
+- Stars
+- Directors
+- Movies
+
+All inserts are idempotent — existing rows are detected and skipped.
+
+#### 4. Create movie associations
+Randomized associations are created:
+- Movie → Genres (up to 3)
+- Movie → Stars (up to 5)
+- Movie → Director (1)
+
+#### 5. Seed user groups (RBAC)
+The seeder ensures the following groups exist:
+- USER
+- MODERATOR
+- ADMIN
+
+These are required for RBAC and admin console functionality.
+
+#### 6. Commit all changes
+All inserts and associations are committed in a single transaction.
+
+### Configuration
+Paths to JSON files are defined in:
+```
+config.py
+```
+Example:
+```python
+CERT_JSON_PATH = "src/seeding/seed_data/certifications.json"
+MOVIE_JSON_PATH = "src/seeding/seed_data/movies.json"
+GENRE_JSON_PATH = "src/seeding/seed_data/genres.json"
+STARS_JSON_PATH = "src/seeding/seed_data/stars.json"
+DIRECTORS_JSON_PATH = "src/seeding/seed_data/directors.json"
+```
+These can be overridden via `.env` if needed.
+
+### JSON Generation
+The generator (`JsonDataGenerator`) creates:
+
+#### Certifications
+- Static list: `G`, `PG`, `PG‑13`, `R`, `NC‑17`.
+
+#### Genres
+- Static list of 20+ genres.
+
+#### Movies
+Randomized fields:
+- Name
+- Year
+- Runtime
+- IMDb rating
+- Votes
+- Meta score
+- Gross revenue
+- Description
+- Price
+- Certification
+
+#### Stars & Directors
+Fetched from `randomuser.me` with fallback names.
+
+### Database Population
+The seeder (`InitialDatabaseSeeder`) performs:
+
+#### 1. Insert unique rows
+Using `_insert_unique_by_name()`:
+- Avoids duplicates
+- Returns a mapping of `{name → id}`
+
+#### 2. Insert movies
+- Movies reference certifications via `certification_id`.
+
+#### 3. Insert associations
+Randomized many‑to‑many relationships:
+- `MoviesGenresModel`
+- `MoviesStarsModel`
+- `MoviesDirectorsModel`
+
+#### 4. Seed user groups
+Ensures RBAC groups exist:
+```python
+USER, MODERATOR, ADMIN
+```
+
+### Running the Seeder
+Run the seeding script:
+```
+python src/seeding/populate_db.py
+```
+This will:
+- Generate missing JSON files
+- Populate the database
+- Create associations
+- Seed user groups
+
+The process is **fully asynchronous** and **logs progress to the console**.
+
+### Architecture Summary
+| Component               | Responsibility                                                               |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| `JsonDataGenerator`     | Generates JSON seed files (certifications, genres, movies, stars, directors) |
+| `InitialDatabaseSeeder` | Loads JSON files and inserts data into the database                          |
+| `config.py`             | Defines paths to seed files and environment configuration                    |
+| `seed_data/`            | Stores generated JSON files                                                  |
+| `populate_db.py`        | Orchestrates the entire seeding process                                      |
+
+### Summary
+The seeding system provides:
+- Automatic JSON generation
+- Idempotent database population
+- Randomized movie metadata
+- Realistic star/director names
+- Complete RBAC group initialization
+- Fully asynchronous implementation
+- Clean separation of concerns
+
+This ensures that the Online Cinema platform always starts with a rich, consistent dataset suitable for development, testing, and demos.

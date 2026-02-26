@@ -11,7 +11,8 @@ from movies.models import (
     MoviesGenresModel,
     MovieLike,
     MovieRating,
-    FavoriteMovie
+    FavoriteMovie,
+    MovieComment
 )
 
 
@@ -405,3 +406,37 @@ class MovieRepository:
         )
         result = await self.db.execute(stmt)
         return {row[0] for row in result.all()}
+
+    async def create_comment(
+        self,
+        movie_id: int,
+        user_id: int,
+        content: str,
+        parent_id: int | None
+    ) -> MovieComment:
+        comment = MovieComment(
+            movie_id=movie_id,
+            user_id=user_id,
+            content=content,
+            parent_id=parent_id
+        )
+        self.db.add(comment)
+        await self.db.flush()
+        return comment
+
+    async def get_comments_for_movie(
+        self,
+        movie_id: int
+    ) -> list[MovieComment]:
+        stmt = (
+            select(MovieComment)
+            .where(MovieComment.movie_id == movie_id)
+            .order_by(MovieComment.created_at.asc())
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_comment_by_id(self, comment_id: int) -> MovieComment | None:
+        stmt = select(MovieComment).where(MovieComment.id == comment_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()

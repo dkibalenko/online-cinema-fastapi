@@ -4,6 +4,8 @@ from fastapi_pagination.ext.sqlalchemy import paginate
 
 from logger_config import get_logger
 
+from cinema_celery.tasks.comment_tasks import send_comment_reply_notification
+from notifications.websocket_manager import manager
 from movies.repository import MovieRepository
 from movies.utils import get_or_create_related
 from movies.filters import build_movie_filter_query
@@ -19,7 +21,9 @@ from movies.schemas import (
     FavoriteMovieResponseSchema,
     MovieFilterParams,
     MovieSortParams,
-    MovieDetailSchema
+    MovieDetailSchema,
+    CommentCreateSchema,
+    CommentSchema,
 )
 
 log = get_logger()
@@ -638,3 +642,83 @@ class MovieService:
         )
 
         return await paginate(self.repo.db, filtered_query)
+
+    async def add_comment(
+        self,
+        movie_id: int,
+        user_id: int,
+        payload: CommentCreateSchema
+    ) -> CommentSchema:
+        log.info(f"Adding comment | movie_id={movie_id} user_id={user_id}")
+        movie = await self.repo.get_movie_basic(movie_id)
+        if not movie:
+            log.warning(f"Movie not found for comment | movie_id={movie_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Movie with ID {movie_id} not found."
+            )
+
+        parent = None
+
+        if payload.parent_id:
+            parent = await self.repo.get_comment_by_id(payload.parent_id)
+            if not parent or parent.movie_id != movie_id:
+                log.warning(
+                    f"Invalid parent comment | parent_id={payload.parent_id}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "Invalid parent comment. Parent comment does not exist"
+                        " or does not belong to the same movie."
+                    )
+                )
+
+        comment = await self.repo.create_comment(
+            movie_id=movie_id,
+            user_id=user_id,
+            content=payload.content,
+            parent_id=payload.parent_id
+        )
+
+        await self.repo.commit()
+
+        # side effects for notifications
+        if parent:
+            # fire-and-forget notification
+            send_comment_reply_notification.delay(
+                email=parent.user.email,
+                movie_title=movie.name,
+                reply_content=payload.content
+            )
+            # WebSocket broadcasting for real‑time notifications
+            await manager.send_to_user(
+                parent.user_id,
+                {
+                    "type": "comment_reply",
+                    "movie_id": movie_id,
+                    "comment_id": comment.id,
+                    "content": payload.content,
+                    "parent_id": payload.parent_id,
+                    "created_at": comment.created_at.isoformat()
+                }
+            )
+
+        return CommentSchema.model_validate(comment)
+
+    async def list_comments(
+        self,
+        movie_id: int
+    ) -> list[CommentSchema]:
+        log.info(f"Listing comments | movie_id={movie_id}")
+        movie = await self.repo.get_movie_basic(movie_id)
+        if not movie:
+            log.warning(f"Movie not found for comment | movie_id={movie_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404,
+                detail=f"Movie with ID {movie_id} not found."
+            )
+
+        comments = await self.repo.get_comments_for_movie(movie_id)
+
+        return [CommentSchema.model_validate(c) for c in comments]

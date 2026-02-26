@@ -14,6 +14,7 @@ app = Celery(
     include=[
         "cinema_celery.tasks.email_tasks",
         "cinema_celery.tasks.cleanup_tasks",
+        "cinema_celery.tasks.comment_tasks",
     ]
 )
 

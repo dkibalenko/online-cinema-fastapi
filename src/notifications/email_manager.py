@@ -2,11 +2,11 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 import aiosmtplib
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 from logger_config import get_logger
-from auth.exceptions import BaseEmailError
-from auth.interfaces import EmailSenderInterface
+from notifications.exceptions import BaseEmailError
+from notifications.interfaces import EmailSenderInterface
 
 
 log = get_logger()
@@ -22,10 +22,11 @@ class EmailSender(EmailSenderInterface):
         password: str,
         use_tls: bool,
         template_dir: str,
-        activation_email_template_name: str,
-        activation_complete_email_template_name: str,
-        password_email_template_name: str,
-        password_complete_email_template_name: str,
+        activation_email_template_name: str = None,
+        activation_complete_email_template_name: str = None,
+        password_email_template_name: str = None,
+        password_complete_email_template_name: str = None,
+        comment_reply_template_name: str = None,
         from_email: str = None,
     ):
         self._hostname = hostname  # SMTP_SERVER
@@ -45,8 +46,32 @@ class EmailSender(EmailSenderInterface):
         self._password_complete_email_template_name = (
             password_complete_email_template_name
         )
+        self._comment_reply_template_name = comment_reply_template_name
 
         self._env = Environment(loader=FileSystemLoader(template_dir))
+
+        self._validate_template(self._activation_email_template_name)
+        self._validate_template(self._activation_complete_email_template_name)
+        self._validate_template(self._password_email_template_name)
+        self._validate_template(self._password_complete_email_template_name)
+        self._validate_template(self._comment_reply_template_name)
+
+
+    @property
+    def comment_reply_template(self):
+        return self._comment_reply_template_name
+
+    def _validate_template(self, template_name: str | None):
+        if not template_name:
+            return  # optional template not provided
+
+        try:
+            self._env.get_template(template_name)
+        except TemplateNotFound:
+            raise BaseEmailError(
+                f"Email template '{template_name}' not found in directory "
+                f"'{self._env.loader.searchpath}'."
+            )
 
     async def _send_email(
         self,
@@ -214,3 +239,34 @@ class EmailSender(EmailSenderInterface):
             "Your Password Has Been Successfully Reset",
             html_content
         )
+
+    async def send_custom_email(
+        self,
+        email: str,
+        subject: str,
+        template_name: str,
+        context: dict
+    ) -> None:
+        """
+        Send a custom email asynchronously.
+
+        Args:
+            email (str): The recipient's email address.
+            subject (str): The email subject.
+            template_name (str): The name of the email template.
+            context (dict): The context data for the email template.
+        """
+        log.debug(
+            f"Rendering custom template "
+            f"'{template_name}' for {email}"
+        )
+
+        template = self._env.get_template(template_name)
+        html_content = template.render(**context)
+
+        log.debug(
+            f"Rendered custom template "
+            f"({len(html_content)} chars) for {email}"
+        )
+
+        await self._send_email(email, subject, html_content)

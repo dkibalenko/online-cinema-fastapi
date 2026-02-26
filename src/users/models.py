@@ -111,6 +111,11 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+    movie_comments: Mapped[list["MovieComment"]] = relationship(
+        "MovieComment",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return (
