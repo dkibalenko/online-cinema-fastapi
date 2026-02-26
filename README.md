@@ -1764,3 +1764,131 @@ The seeding system provides:
 - Clean separation of concerns
 
 This ensures that the Online Cinema platform always starts with a rich, consistent dataset suitable for development, testing, and demos.
+
+## ⭐ Running the Project with Docker Compose
+The project includes a full Docker Compose setup that launches all required services for local development or demo environments. This setup ensures a consistent environment across machines and eliminates the need to install Postgres, MinIO, or Mailhog manually.
+
+### Services Included in docker-compose.yml
+The Compose stack typically includes:
+
+#### 1. FastAPI application  
+Runs the backend server with all API routes, WebSocket notifications, RBAC, admin console, and business logic.
+
+#### 2. PostgreSQL database  
+Stores all application data: users, profiles, movies, ratings, likes, favorites, comments, and RBAC groups.
+
+#### 3. MinIO (S3-compatible storage)  
+Used for storing user avatars and other media assets.
+
+#### 4. Mailhog  
+Captures outgoing emails (activation, password reset) for local testing.
+
+#### 5. Celery worker + Celery beat  
+Handles background tasks such as sending emails.
+
+#### 6. Redis  
+Used as the Celery broker and result backend.
+
+#### 7. Database seeding container  
+Automatically generates JSON seed files and populates the database with:
+- User groups (`USER`, `MODERATOR`, `ADMIN`)
+- Certifications
+- Genres
+- Stars
+- Directors
+- Movies
+- Movie associations (genres, stars, directors)
+
+---
+
+### Environment Configuration
+All environment variables are loaded from `.env` using Pydantic Settings.
+
+Use `.env.sample` file to define `.env` variables.
+
+The seeding system also uses paths defined in config.py:
+```python
+CERT_JSON_PATH=src/seeding/seed_data/certifications.json
+MOVIE_JSON_PATH=src/seeding/seed_data/movies.json
+GENRE_JSON_PATH=src/seeding/seed_data/genres.json
+STARS_JSON_PATH=src/seeding/seed_data/stars.json
+DIRECTORS_JSON_PATH=src/seeding/seed_data/directors.json
+```
+These are generated automatically if missing.
+
+---
+
+### Starting the Entire Stack
+From the project root:
+```
+docker compose up --build
+```
+This will:
+- Build the FastAPI application image
+- Start Postgres, Redis, MinIO, Mailhog
+- Start Celery worker and beat
+- Run the database seeding container
+- Launch the FastAPI server
+
+Once everything is up, the API is available at:
+```
+http://localhost:8000
+```
+
+Interactive docs:
+```
+http://localhost:8000/docs
+```
+
+---
+
+### Database Seeding on Startup
+The seeding container runs:
+```
+python src/seeding/populate_db.py
+```
+This script:
+- Generates JSON seed files if missing
+- Seeds user groups (`USER`, `MODERATOR`, `ADMIN`)
+- Loads certifications, genres, stars, directors, movies
+- Inserts associations (movie → genres, stars, directors)
+- Commits everything in a single transaction
+
+The seeding process is **idempotent** — running it multiple times will not duplicate data.
+
+---
+
+### Useful Docker Commands
+#### 1. Rebuild everything
+```
+docker compose up --build
+```
+
+#### 2. Run in detached mode
+```
+docker compose up -d
+```
+
+#### 3. Stop all services
+```
+docker compose down
+```
+
+#### 4. Remove volumes (reset database)
+```
+docker compose down -v
+```
+
+#### 5. View logs
+```
+docker compose logs -f
+```
+
+---
+
+### Development Workflow
+- Modify backend code → Docker automatically reloads if using bind mounts
+- Database changes → run migrations or reset with `down -v`
+- Seed data → automatically applied on first startup
+
+This setup ensures a smooth development experience without manual environment setup.
