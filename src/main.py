@@ -15,7 +15,23 @@ from movies.genres_router import router as genres_router
 from notifications.ws_router import router as ws_router
 
 
-def create_app() -> FastAPI:
+def create_app(testing: bool = False) -> FastAPI:
+    """
+    Creates a FastAPI instance with the following configuration:
+    - Logging is set up
+    - The FastAPI instance has the title "Online Cinema" and a description
+    - Debug mode is enabled if testing is True
+    - The FastAPI instance includes routers for authentication, users,
+        admin users, movies, and genres
+    - The FastAPI instance includes a rate limiter and a middleware to handle
+      rate limit exceeded exceptions, but only if testing is False
+
+    Args:
+        testing (bool): Whether to enable debug mode. Defaults to False.
+
+    Returns:
+        FastAPI: The created FastAPI instance
+    """
     setup_logging()
 
     app = FastAPI(
@@ -25,6 +41,7 @@ def create_app() -> FastAPI:
             "and purchase access to movies and other video materials "
             "via the internet."
         ),
+        debug=testing,
     )
 
     # Pagination
@@ -40,16 +57,19 @@ def create_app() -> FastAPI:
     app.include_router(genres_router, prefix=f"{api_version_prefix}")
     app.include_router(ws_router, prefix=f"{api_version_prefix}")
 
-    # Middleware
-    app.state.limiter = limiter
-    app.add_middleware(SlowAPIMiddleware)
+    # Rate limiting only in non‑test runs
+    if not testing:
+        app.state.limiter = limiter
+        app.add_middleware(SlowAPIMiddleware)
 
-    @app.exception_handler(RateLimitExceeded)
-    async def rate_limit_handler(request, exc):
-        return JSONResponse(
-            status_code=429,
-            content={"message": "Too many requests. Please try again later."}
-        )
+        @app.exception_handler(RateLimitExceeded)
+        async def rate_limit_handler(request, exc):
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "message": "Too many requests. Please try again later."
+                },
+            )
 
     return app
 
