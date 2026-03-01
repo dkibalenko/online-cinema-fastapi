@@ -7,7 +7,7 @@ from moto import mock_aws
 from main import create_app
 from database import get_db
 from config import get_settings
-from tests.settings import TestSettings, get_test_settings
+from tests.settings import get_test_settings
 from tests.utils.db import create_test_engine, drop_test_engine
 from users.enums import UserGroupEnum
 from users.models import UserGroup
