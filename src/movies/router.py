@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Request
 from fastapi_pagination import Page
 
 from rate_limiting import limiter
@@ -53,6 +53,7 @@ router = APIRouter(prefix="/movies", tags=["movies"])
 )
 @limiter.limit("60/minute")
 async def list_movies(
+    request: Request,
     filter_query: Annotated[MovieFilterParams, Depends()],
     sort_query: Annotated[MovieSortParams, Depends()],
     service: Annotated[MovieService, Depends(get_movie_service)],
@@ -137,6 +138,7 @@ async def list_favorites(
 )
 @limiter.limit("60/minute")
 async def get_movie(
+    request: Request,
     movie_id: int,
     service: Annotated[MovieService, Depends(get_movie_service)],
     user: Annotated[User, Depends(get_current_user)]
@@ -212,6 +214,7 @@ async def delete_movie(
 )
 @limiter.limit("20/minute")
 async def like_movie(
+    request: Request,
     movie_id: int,
     service: Annotated[MovieService, Depends(get_movie_service)],
     user: Annotated[User, Depends(get_current_user)],
@@ -236,6 +239,7 @@ async def like_movie(
 )
 @limiter.limit("20/minute")
 async def dislike_movie(
+    request: Request,
     movie_id: int,
     service: Annotated[MovieService, Depends(get_movie_service)],
     user: Annotated[User, Depends(get_current_user)],
@@ -316,6 +320,7 @@ async def get_movie_reactions(
 )
 @limiter.limit("10/minute")
 async def rate_movie(
+    request: Request,
     movie_id: int,
     payload: MovieRatingCreateSchema,
     service: Annotated[MovieService, Depends(get_movie_service)],
@@ -398,6 +403,7 @@ async def get_movie_rating_summary(
 )
 @limiter.limit("20/minute")
 async def add_to_favorites(
+    request: Request,
     movie_id: int,
     service: Annotated[MovieService, Depends(get_movie_service)],
     user: Annotated[User, Depends(get_current_user)]
@@ -453,6 +459,7 @@ async def remove_from_favorites(
 )
 @limiter.limit("10/minute")
 async def add_comment(
+    request: Request,
     movie_id: int,
     payload: CommentCreateSchema,
     service: Annotated[MovieService, Depends(get_movie_service)],

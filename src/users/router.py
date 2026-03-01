@@ -32,6 +32,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 )
 @limiter.limit("10/minute")
 async def get_current_user_profile(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     users: Annotated[UserService, Depends(get_users_service)],
 ) -> ProfileResponseSchema:
@@ -145,7 +146,6 @@ async def update_my_profile(
 
 @router.delete(
     "/me/profile",
-    response_model=MessageResponseSchema,
     description="Delete current user's profile. Requires authentication.",
     responses={
         204: {"description": "The user profile was successfully deleted."},
@@ -160,5 +160,5 @@ async def delete_my_profile(
     current_user: Annotated[User, Depends(get_current_user)],
     users: Annotated[UserService, Depends(get_users_service)],
     jwt_token: Annotated[str, Depends(get_token)],
-) -> MessageResponseSchema:
+):
     await users.delete_my_profile(current_user.id, jwt_token)
