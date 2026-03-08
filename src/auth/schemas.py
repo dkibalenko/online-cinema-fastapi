@@ -1,9 +1,4 @@
-from pydantic import (
-    BaseModel,
-    EmailStr,
-    field_validator,
-    Field
-)
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from users.validators import validate_password_complexity
 
@@ -19,11 +14,28 @@ class BaseEmailPasswordSchema(BaseModel):
     @field_validator("email")
     @classmethod
     def validate_email(cls, value):
+        """Validate an email address.
+
+        The given email is converted to lowercase to ensure consistency.
+
+        :param value: The email address to validate.
+        :return: The validated email address.
+        :raises ValueError: If the email address is not valid.
+        """
         return value.lower()
 
     @field_validator("password")
     @classmethod
     def validate_password(cls, value):
+        """Validate a password against complexity rules.
+
+        The password must contain at least 8 characters, one uppercase letter,
+        one lowercase letter, one digit, and one special character.
+
+        :param value: The password to validate.
+        :return: The validated password.
+        :raises ValueError: If the password does not meet the complexity rules.
+        """
         return validate_password_complexity(value)
 
 
@@ -35,9 +47,7 @@ class UserRegistrationResponseSchema(BaseModel):
     id: int
     email: EmailStr
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}
 
 
 class UserActivationRequestSchema(BaseModel):
@@ -84,4 +94,15 @@ class ChangePasswordSchema(BaseModel):
     @field_validator("new_password")
     @classmethod
     def validate_password(cls, value):
+        """Validates the given new password against password complexity rules.
+
+        Args:
+            value (str): The new password to validate.
+
+        Returns:
+            str: The validated password.
+
+        Raises:
+            ValueError: If the password does not meet the complexity rules.
+        """
         return validate_password_complexity(value)

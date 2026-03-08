@@ -1,78 +1,91 @@
+from typing import Annotated
+
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from config import get_settings, BaseAppSettings
-from database import get_db
-from logger_config import get_logger
-from exceptions import InvalidTokenError, TokenExpiredError
-from users.models import User, UserGroupEnum
 from auth.interfaces import JWTAuthManagerInterface
-from auth.token_manager import JWTAuthManager
 from auth.repository import AuthRepository
 from auth.service import AuthService
-from notifications.interfaces import EmailSenderInterface
+from auth.token_manager import JWTAuthManager
+from config import BaseAppSettings, get_settings
+from database import get_db
+from exceptions import InvalidTokenError, TokenExpiredError
+from logger_config import get_logger
 from notifications.dependencies import get_auth_email_sender
-
+from notifications.interfaces import EmailSenderInterface
+from users.models import User, UserGroupEnum
 
 bearer_scheme = HTTPBearer()
 
 log = get_logger()
 
 
-def get_auth_repository(db: AsyncSession = Depends(get_db)) -> AuthRepository:
+def get_auth_repository(
+    db: Annotated[AsyncSession, Depends(get_db)]
+) -> AuthRepository:
+    """Dependency factory that returns an instance of the `AuthRepository`.
+
+    The repository is constructed using the provided async database session.
+
+    :param db: An async database session.
+    :return: An instance of the `AuthRepository` class.
+    """
     return AuthRepository(db)
 
 
 def get_jwt_auth_manager(
-    settings: BaseAppSettings = Depends(get_settings)
+    settings: Annotated[BaseAppSettings, Depends(get_settings)],
 ) -> JWTAuthManagerInterface:
-    """
-    Retrieves an instance of the `JWTAuthManager` class based on 
-    the application settings which implements the `JWTAuthManagerInterface`.
+    """Retrieves an instance of the `JWTAuthManager` class.
+
+    The manager is created based on the application settings which implements
+    the `JWTAuthManagerInterface`.
 
     The manager is configured with the secret keys for access & refresh tokens
     and JWT signing algorithm defined in the settings.
 
     Args:
-        `settings` (BaseAppSettings): The application settings.
+        settings: An instance of the `BaseAppSettings` class.
 
     Returns:
-        `JWTAuthManager`: An instance of the `JWTAuthManager` class.    
+        `JWTAuthManager`: An instance of the `JWTAuthManager` class.
     """
     return JWTAuthManager(
         secret_key_access=settings.JWT_SECRET_KEY_ACCESS.get_secret_value(),
         secret_key_refresh=settings.JWT_SECRET_KEY_REFRESH.get_secret_value(),
-        algorithm=settings.JWT_SIGNING_ALGORITHM
+        algorithm=settings.JWT_SIGNING_ALGORITHM,
     )
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-    db: AsyncSession = Depends(get_db)
+    credentials: Annotated[
+        HTTPAuthorizationCredentials, Depends(bearer_scheme)
+    ],
+    jwt_manager: Annotated[
+        JWTAuthManagerInterface, Depends(get_jwt_auth_manager)
+    ],
+    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
-    """
-    Extracts and returns the authenticated user based on the access token.
-    """
+    """Extracts and returns an authenticated user based on the access token."""
     token = credentials.credentials
 
     try:
         payload = jwt_manager.decode_access_token(token)
-    except TokenExpiredError:
+    except TokenExpiredError as error:
         log.error("Access token has expired")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Access token has expired",
-        )
-    except InvalidTokenError:
+        ) from error
+    except InvalidTokenError as error:
         log.error("Invalid access token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid access token",
-        )
+        ) from error
 
     if payload.get("type") != "access":
         log.error("Invalid token type")
@@ -92,12 +105,12 @@ async def get_current_user(
 
     try:
         user_id_int = int(user_id)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as error:
         log.error("Invalid token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
-        )
+        ) from error
 
     result = await db.execute(
         select(User)
@@ -124,14 +137,18 @@ async def get_current_user(
 
 
 def require_role(*allowed_roles: UserGroupEnum):
-    """
-    Dependency factory ensuring the current user has one of the allowed roles.
+    """Dependency factory.
+
+    Checks if the current user has one of the allowed roles.
 
     Usage:
-        @router.get("/admin", dependencies=[Depends(require_role(UserGroupEnum.ADMIN))])
-        @router.post("/movies", dependencies=[Depends(require_role(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))])
+        @router.get("/admin", dependencies=[Depends(require_role(ADMIN))])
+        @router.post("/movies", dependencies=[Depends(require_role(ADMIN))])
     """
-    def role_checker(current_user: User = Depends(get_current_user)) -> User:
+
+    def role_checker(
+        current_user: Annotated[User, Depends(get_current_user)]
+    ) -> User:
         # Check if user has any allowed role
         if not any(current_user.has_group(role) for role in allowed_roles):
             allowed = ", ".join(role.value for role in allowed_roles)
@@ -145,12 +162,21 @@ def require_role(*allowed_roles: UserGroupEnum):
 
 
 def get_auth_service(
-    auth: AuthRepository = Depends(get_auth_repository),
-    jwt = Depends(get_jwt_auth_manager),
-    email_sender: EmailSenderInterface = Depends(get_auth_email_sender)
+    auth: Annotated[AuthRepository, Depends(get_auth_repository)],
+    jwt: Annotated[JWTAuthManagerInterface, Depends(get_jwt_auth_manager)],
+    email_sender: Annotated[
+        EmailSenderInterface, Depends(get_auth_email_sender)
+    ],
 ) -> AuthService:
-    return AuthService(
-        auth=auth,
-        jwt=jwt,
-        email_sender=email_sender
-    )
+    """Dependency factory that returns an instance of the `AuthService` class.
+
+    The instance is constructed using the `AuthRepository`,
+    `JWTAuthManagerInterface` and `EmailSenderInterface` instances provided
+    by the dependencies.
+
+    :param auth: An instance of the `AuthRepository` class.
+    :param jwt: An instance of the `JWTAuthManagerInterface` class.
+    :param email_sender: An instance of the `EmailSenderInterface` class.
+    :return: An instance of the `AuthService` class.
+    """
+    return AuthService(auth=auth, jwt=jwt, email_sender=email_sender)
