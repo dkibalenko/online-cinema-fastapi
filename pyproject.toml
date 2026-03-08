@@ -90,6 +90,8 @@ ignore = [
     "D213",  # Allow summary line on its own line
     "D100",  # Missing docstring in public module
     "D101",  # Missing docstring in public class
+    "D104",  # Missing docstring in public package
+    "D105",  # Missing docstring in magic method
     "D107",  # Missing docstring in __init__
     "D401",  # First line should be in imperative mood
 ]
