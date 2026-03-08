@@ -12,7 +12,6 @@ sqlalchemy = "^2.0.36"
 pydantic-settings = "^2.7.0"
 tqdm = "^4.67.1"
 uvicorn = {extras = ["standard"], version = "^0.38.0"}
-flake8 = "^7.1.1"
 psycopg2-binary = "^2.9.10"
 alembic = "^1.14.0"
 passlib = {extras = ["bcrypt"], version = "^1.7.4"}
@@ -35,7 +34,7 @@ aiofiles = "^25.1.0"
 fastapi-pagination = "^0.15.5"
 slowapi = "^0.1.9"
 celery = "^5.6.2"
-redis = "^7.1.0"
+redis = {extras = ["async"], version = "^7.2.1"}
 flower = "^2.0.1"
 pytest-postgresql = "^8.0.0"
 factory-boy = "^3.3.3"
@@ -43,14 +42,59 @@ faker = "^40.5.1"
 moto = "^5.1.21"
 
 [tool.poetry.group.dev.dependencies]
-flake8 = "^7.0.0"
 pytest = "^8.3.4"
 pytest-env = "^1.1.5"
 pytest-order = "^1.3.0"
 pytest-asyncio = "^0.25.3"
 httpx = "^0.28.1"
 mypy = "^1.10.0"
+ruff = "^0.15.5"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 79
+target-version = "py312"
+# fix = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = false
+skip-magic-trailing-comma = false
+
+[tool.ruff.lint]
+extend-select = [
+    "F",      # Pyflakes
+    "E",      # Pycodestyle errors
+    "W",      # Pycodestyle warnings
+    "I",      # Import sorting
+    "UP",     # Pyupgrade
+    "C4",     # Comprehension correctness
+    "ISC",    # String concatenation correctness
+    "ICN",    # Import conventions
+    "RET",    # Return statement rules
+    "SIM",    # Simplifications
+    "TID",    # Import tidiness
+    "TC",     # TYPE_CHECKING import rules
+    "PTH",    # pathlib instead of os.path
+    "TD",     # TODO comment hygiene
+    "B",      # Bugbear
+    "D",      # Docstring rules
+]
+
+ignore = [
+    "D203",  # No blank line before class docstring
+    "D213",  # Allow summary line on its own line
+    "D100",  # Missing docstring in public module
+    "D101",  # Missing docstring in public class
+    "D107",  # Missing docstring in __init__
+    "D401",  # First line should be in imperative mood
+]
+
+# unfixable = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
