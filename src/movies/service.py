@@ -33,17 +33,59 @@ from notifications.websocket_manager import manager
 log = get_logger()
 
 
-class MovieService:
-    def __init__(self, repo: MovieRepository, cache: CacheService):
-        self.repo = repo
+class MovieCacheInvalidationService:
+    def __init__(self, cache: CacheService):
         self.cache = cache
 
-    async def _invalidate_movie_list_cache(self, user_id: int):
-        pattern = f"movies:list:{user_id}:*"
-        await self.cache.delete_pattern(pattern)
+    async def invalidate_movie_lists(self, user_id: int | None = None):
+        """Invalidate all movie lists for a user.
 
-    async def _invalidate_all_movie_lists(self):
-        await self.cache.delete_pattern("movies:list:*")
+        If user_id is None, invalidate all movie lists.
+        Otherwise, invalidate only the movie lists for the given user.
+
+        Args:
+            user_id (int | None): The ID of the user. If None, invalidate all
+            movie lists.
+        """
+        if user_id:
+            await self.cache.delete_pattern(f"movies:list:{user_id}:*")
+        else:
+            await self.cache.delete_pattern("movies:list:*")
+
+    async def invalidate_reactions(self, movie_id: int, user_id: int):
+        """Invalidate reaction summary for a user.
+
+        Args:
+            movie_id (int): The ID of the movie.
+            user_id (int): The ID of the user.
+        """
+        await self.cache.delete(f"movie:{movie_id}:reactions:user:{user_id}")
+
+    async def invalidate_rating(self, movie_id: int, user_id: int):
+        """Invalidate the rating summary for a user.
+
+        Args:
+            movie_id (int): The ID of the movie.
+            user_id (int): The ID of the user.
+
+        Returns:
+            None
+        """
+        await self.cache.delete(
+            f"movie:{movie_id}:rating_summary:user:{user_id}"
+        )
+
+
+class MovieService:
+    def __init__(
+        self,
+        repo: MovieRepository,
+        cache: CacheService,
+        cache_invalidator: MovieCacheInvalidationService,
+    ):
+        self.repo = repo
+        self.cache = cache
+        self.cache_invalidator = cache_invalidator
 
     async def get_movie_list(
         self,
@@ -204,7 +246,7 @@ class MovieService:
             log.info(f"Movie created | movie_id={movie.id}")
 
             # invalidate ALL movie list caches
-            await self.cache.delete_pattern("movies:list:*")
+            await self.cache_invalidator.invalidate_movie_lists()
 
             return movie
         except IntegrityError as e:
@@ -260,7 +302,7 @@ class MovieService:
             log.info(f"Movie updated | movie_id={movie.id}")
 
             # invalidate ALL movie list caches
-            await self.cache.delete_pattern("movies:list:*")
+            await self.cache_invalidator.invalidate_movie_lists()
 
             return movie
         except IntegrityError as e:
@@ -295,7 +337,7 @@ class MovieService:
         await self.repo.commit()
 
         # invalidate ALL movie list caches
-        await self.cache.delete_pattern("movies:list:*")
+        await self.cache_invalidator.invalidate_movie_lists()
 
         log.info(f"Movie deleted | movie_id={movie_id}")
 
@@ -328,6 +370,18 @@ class MovieService:
             ttl=3600,  # 1 hour
         )
         return result
+
+
+class MovieReactionService:
+    def __init__(
+        self,
+        repo: MovieRepository,
+        cache: CacheService,
+        cache_invalidator: MovieCacheInvalidationService
+    ):
+        self.repo = repo
+        self.cache = cache
+        self.cache_invalidator = cache_invalidator
 
     async def _ensure_movie_exists(self, movie_id: int) -> None:
         movie = await self.repo.get_movie_basic(movie_id)
@@ -389,8 +443,8 @@ class MovieService:
         await self.repo.commit()
 
         # invalidate reactions cache for this user+movie
-        await self.cache.delete(f"movie:{movie_id}:reactions:user:{user_id}")
-        await self._invalidate_movie_list_cache(user_id)
+        await self.cache_invalidator.invalidate_reactions(movie_id, user_id)
+        await self.cache_invalidator.invalidate_movie_lists(user_id)
 
         summary = await self._build_reaction_summary(user_id, movie_id)
         return MovieReactionActionResponseSchema(
@@ -419,8 +473,8 @@ class MovieService:
         await self.repo.commit()
 
         # invalidate reactions cache for this user+movie
-        await self.cache.delete(f"movie:{movie_id}:reactions:user:{user_id}")
-        await self._invalidate_movie_list_cache(user_id)
+        await self.cache_invalidator.invalidate_reactions(movie_id, user_id)
+        await self.cache_invalidator.invalidate_movie_lists(user_id)
 
         summary = await self._build_reaction_summary(user_id, movie_id)
         return MovieReactionActionResponseSchema(
@@ -449,8 +503,8 @@ class MovieService:
         await self.repo.commit()
 
         # invalidate reactions cache for this user+movie
-        await self.cache.delete(f"movie:{movie_id}:reactions:user:{user_id}")
-        await self._invalidate_movie_list_cache(user_id)
+        await self.cache_invalidator.invalidate_reactions(movie_id, user_id)
+        await self.cache_invalidator.invalidate_movie_lists(user_id)
 
         summary = await self._build_reaction_summary(user_id, movie_id)
         return MovieReactionActionResponseSchema(
@@ -539,10 +593,8 @@ class MovieService:
         await self.repo.commit()
 
         # invalidate rating summary cache
-        await self.cache.delete(
-            f"movie:{movie_id}:rating_summary:user:{user_id}"
-        )
-        await self._invalidate_movie_list_cache(user_id)
+        await self.cache_invalidator.invalidate_rating(movie_id, user_id)
+        await self.cache_invalidator.invalidate_movie_lists(user_id)
 
         (
             avg_rating,
@@ -584,7 +636,7 @@ class MovieService:
 
         await self.repo.commit()
 
-        await self._invalidate_movie_list_cache(user_id)
+        await self.cache_invalidator.invalidate_movie_lists(user_id)
 
         (
             avg_rating,
@@ -670,7 +722,7 @@ class MovieService:
 
         await self.repo.add_favorite(user_id, movie_id)
         await self.repo.commit()
-        await self._invalidate_movie_list_cache(user_id)
+        await self.cache_invalidator.invalidate_movie_lists(user_id)
 
         return FavoriteMovieResponseSchema(movie_id=movie_id, is_favorite=True)
 
@@ -699,7 +751,7 @@ class MovieService:
 
         await self.repo.remove_favorite(user_id, movie_id)
         await self.repo.commit()
-        await self._invalidate_movie_list_cache(user_id)
+        await self.cache_invalidator.invalidate_movie_lists(user_id)
 
         return FavoriteMovieResponseSchema(
             movie_id=movie_id, is_favorite=False
@@ -728,6 +780,11 @@ class MovieService:
         )
 
         return await paginate(self.repo.db, filtered_query)
+
+
+class MovieCommentService:
+    def __init__(self, repo: MovieRepository):
+        self.repo = repo
 
     async def add_comment(
         self, movie_id: int, user_id: int, payload: CommentCreateSchema
