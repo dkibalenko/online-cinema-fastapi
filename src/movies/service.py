@@ -1,59 +1,91 @@
+import hashlib
+import json
+
 from fastapi import HTTPException, status
-from sqlalchemy.exc import IntegrityError
+from fastapi_pagination import Page
 from fastapi_pagination.ext.sqlalchemy import paginate
+from sqlalchemy.exc import IntegrityError
 
-from logger_config import get_logger
-
+from cache.service import CacheService
 from cinema_celery.tasks.comment_tasks import send_comment_reply_notification
-from notifications.websocket_manager import manager
-from movies.repository import MovieRepository
-from movies.utils import get_or_create_related
+from logger_config import get_logger
 from movies.filters import build_movie_filter_query
-from movies.models import Movie, Genre, Star, Director, Certification
+from movies.models import Certification, Director, Genre, Movie, Star
+from movies.repository import MovieRepository
 from movies.schemas import (
-    MovieCreateSchema,
-    MovieUpdateSchema,
-    GenreWithCountSchema,
-    MovieReactionSummarySchema,
-    MovieReactionActionResponseSchema,
-    MovieRatingCreateSchema,
-    MovieRatingSummarySchema,
-    FavoriteMovieResponseSchema,
-    MovieFilterParams,
-    MovieSortParams,
-    MovieDetailSchema,
     CommentCreateSchema,
     CommentSchema,
+    FavoriteMovieResponseSchema,
+    GenreWithCountSchema,
+    MovieCreateSchema,
+    MovieDetailSchema,
+    MovieFilterParams,
+    MovieRatingCreateSchema,
+    MovieRatingSummarySchema,
+    MovieReactionActionResponseSchema,
+    MovieReactionSummarySchema,
+    MovieSortParams,
+    MovieUpdateSchema,
 )
+from movies.utils import get_or_create_related
+from notifications.websocket_manager import manager
 
 log = get_logger()
 
 
 class MovieService:
-    def __init__(self, repo: MovieRepository):
+    def __init__(self, repo: MovieRepository, cache: CacheService):
         self.repo = repo
+        self.cache = cache
+
+    async def _invalidate_movie_list_cache(self, user_id: int):
+        pattern = f"movies:list:{user_id}:*"
+        await self.cache.delete_pattern(pattern)
+
+    async def _invalidate_all_movie_lists(self):
+        await self.cache.delete_pattern("movies:list:*")
 
     async def get_movie_list(
         self,
         user_id: int,
         filter_query: MovieFilterParams,
-        sort_query: MovieSortParams
+        sort_query: MovieSortParams,
     ):
-        """
-        Fetches a list of movies based on the given filters and sort order
+        """Retrieve a paginated movie list with optional filtering & sorting.
 
-        Parameters:
-            user_id (int): The ID of the user to fetch favorite movies for
-            filter_query (MovieFilterParams): The filters to apply to
-                the movie list
-            sort_query (MovieSortParams): The sort order to apply to
-                the movie list
+        Args:
+            user_id (int): The ID of the authenticated user.
+            filter_query (MovieFilterParams): The filter options.
+            sort_query (MovieSortParams): The sorting options.
 
         Returns:
-            Page[MovieDetailSchema]: A paginated list of movies with their
-                favorite status
+            Page[MovieListItemSchema]: The paginated list of movies.
         """
         log.info("Fetching movie list")
+
+        # Build a stable hash for filters + sorting + page
+        filter_data = filter_query.model_dump()
+        sort_data = sort_query.model_dump()
+
+        # Convert to JSON string for hashing
+        raw_key = json.dumps(
+            {
+                "filters": filter_data,
+                "sort": sort_data,
+            },
+            sort_keys=True,
+        )
+
+        hashed = hashlib.md5(raw_key.encode()).hexdigest()
+
+        cache_key = f"movies:list:{user_id}:{hashed}"
+
+        cached = await self.cache.get(cache_key)
+        if cached:
+            # Reconstruct pagination object
+            return Page(**cached)
+
+        # Not cached → compute
         filtered_query = build_movie_filter_query(filter_query, sort_query)
 
         page = await paginate(self.repo.db, filtered_query)
@@ -61,47 +93,56 @@ class MovieService:
         favorite_ids = await self.repo.get_favorite_movie_ids(user_id)
 
         for movie in page.items:
-            # efficiently compute is_favorite by a bulk lookup of user's favorite movie IDs
+            # efficiently compute is_favorite by a bulk lookup of user's
+            # favorite movie IDs
             movie.is_favorite = movie.id in favorite_ids
+
+        # Cache the serialized page
+        await self.cache.set(
+            cache_key,
+            page.model_dump(),
+            ttl=60,  # 1 minute
+        )
 
         return page
 
     async def get_movie_detail(
-        self,
-        movie_id: int,
-        user_id: int
+        self, movie_id: int, user_id: int
     ) -> MovieDetailSchema:
-        """
-        Fetches a movie by its ID, including its favorite status for
-            the given user
+        """Retrieve a movie detail with optional filtering and sorting.
 
-        Parameters:
-            movie_id (int): The ID of the movie to fetch
-            user_id (int): The ID of the user to fetch favorite status for
+        Args:
+            movie_id (int): The ID of the movie.
+            user_id (int): The ID of the authenticated user.
 
         Returns:
-            MovieDetailSchema: A movie with its favorite status
+            MovieDetailSchema: The movie detail.
         """
         log.info(f"Fetching movie detail | movie_id={movie_id}")
+
+        cache_key = f"movie:detail:{movie_id}:user:{user_id}"
+        cached = await self.cache.get(cache_key)
+        if cached:
+            return MovieDetailSchema(**cached)
+
         movie = await self.repo.get_movie_by_id_with_relations(movie_id)
 
         if not movie:
             log.warning(f"Movie not found | movie_id={movie_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Movie with ID {movie_id} not found."
+                detail=f"Movie with ID {movie_id} not found.",
             )
 
         is_favorite = await self.repo.is_favorite(user_id, movie_id)
 
-        return MovieDetailSchema(
-            **movie.__dict__,
-            is_favorite=is_favorite
-        )
+        result = MovieDetailSchema(**movie.__dict__, is_favorite=is_favorite)
+
+        await self.cache.set(cache_key, result.model_dump(), ttl=600)
+        return result
 
     async def create_movie(self, data: MovieCreateSchema) -> Movie:
-        """
-        Create a new movie.
+        """Create a new movie.
 
         :param data: The movie data to create.
         :raises HTTPException: If the movie already exists with the same
@@ -109,7 +150,7 @@ class MovieService:
         :raises HTTPException: If any of the related data is invalid.
         :return: The newly created movie.
         """
-        log.info(f"Creating movie | name={data.name} year={data.year}")        
+        log.info(f"Creating movie | name={data.name} year={data.year}")
 
         # 1. Check for existing movie
         existing = await self.repo.get_movie_by_name_year(data.name, data.year)
@@ -122,7 +163,7 @@ class MovieService:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Movie with the name {data.name} and year "
-                f"{data.year} already exists."
+                f"{data.year} already exists.",
             )
 
         try:
@@ -142,7 +183,7 @@ class MovieService:
             )
 
             # 4. Create Movie
-            # exclude the relation fields from the dict and pass resolved objects
+            # exclude the relation fields from the dict and pass resolved objs
             movie_dict = data.model_dump(  # gives a dict of validated data
                 exclude={"genres", "stars", "directors", "certification"}
             )
@@ -151,7 +192,7 @@ class MovieService:
                 certification=certification,
                 genres=genres,
                 stars=stars,
-                directors=directors
+                directors=directors,
             )
 
             self.repo.add(movie)
@@ -161,22 +202,23 @@ class MovieService:
             await self.repo.refresh_with_relations(movie)
 
             log.info(f"Movie created | movie_id={movie.id}")
+
+            # invalidate ALL movie list caches
+            await self.cache.delete_pattern("movies:list:*")
+
             return movie
         except IntegrityError as e:
             log.error(f"Integrity error during movie creation | error={e}")
             await self.repo.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Integrity error. Ensure all related data is valid."
-            )
+                detail="Integrity error. Ensure all related data is valid.",
+            ) from e
 
     async def update_movie(
-        self,
-        movie_id: int,
-        data: MovieUpdateSchema
+        self, movie_id: int, data: MovieUpdateSchema
     ) -> Movie:
-        """
-        Update a movie by its ID.
+        """Update a movie by its ID.
 
         :param movie_id: The ID of the movie to be updated.
         :param data: The fields to be updated with the new values.
@@ -193,7 +235,7 @@ class MovieService:
             log.warning(f"Movie not found | movie_id={movie_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Movie with ID {movie_id} not found."
+                detail=f"Movie with ID {movie_id} not found.",
             )
 
         # Extract only the fields sent in the request
@@ -203,7 +245,7 @@ class MovieService:
             log.warning(f"No fields provided for update | movie_id={movie_id}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No fields provided for update."
+                detail="No fields provided for update.",
             )
 
         # Apply changes
@@ -216,6 +258,10 @@ class MovieService:
             await self.repo.refresh_with_relations(movie)
 
             log.info(f"Movie updated | movie_id={movie.id}")
+
+            # invalidate ALL movie list caches
+            await self.cache.delete_pattern("movies:list:*")
+
             return movie
         except IntegrityError as e:
             log.error(f"Integrity error during movie update | error={e}")
@@ -224,12 +270,11 @@ class MovieService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
                     "Integrity error. Ensure all related data is unique/valid."
-                )
-            )
+                ),
+            ) from e
 
     async def delete_movie(self, movie_id: int):
-        """
-        Delete a movie by its ID.
+        """Delete a movie by its ID.
 
         :param movie_id: The ID of the movie to be deleted.
         :raises HTTPException: If the movie is not found.
@@ -243,30 +288,46 @@ class MovieService:
             )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Movie with ID {movie_id} not found."
+                detail=f"Movie with ID {movie_id} not found.",
             )
 
         await self.repo.delete(movie)
         await self.repo.commit()
 
+        # invalidate ALL movie list caches
+        await self.cache.delete_pattern("movies:list:*")
+
         log.info(f"Movie deleted | movie_id={movie_id}")
 
     async def list_genres_with_count(self) -> list[GenreWithCountSchema]:
-        """
-        List all genres along with the count of movies associated with each.
+        """List genres with their associated movie count.
+
+        This function first checks the cache for the result.
+        If not found, it queries the database and caches the result.
 
         :return: A list of GenreWithCountSchema objects.
         """
+        cache_key = "genres:with_count"
+
+        cached = await self.cache.get(cache_key)
+        if cached:
+            return [GenreWithCountSchema(**row) for row in cached]
+
         rows = await self.repo.get_genres_with_movie_count()
 
-        return [
+        result = [
             GenreWithCountSchema(
-                id=row.id,
-                name=row.name,
-                movie_count=row.movie_count
+                id=row.id, name=row.name, movie_count=row.movie_count
             )
             for row in rows
         ]
+
+        await self.cache.set(
+            cache_key,
+            [r.model_dump() for r in result],
+            ttl=3600,  # 1 hour
+        )
+        return result
 
     async def _ensure_movie_exists(self, movie_id: int) -> None:
         movie = await self.repo.get_movie_basic(movie_id)
@@ -275,21 +336,17 @@ class MovieService:
             log.warning(f"Movie not found for reaction | movie_id={movie_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Movie with ID {movie_id} not found."
+                detail=f"Movie with ID {movie_id} not found.",
             )
 
     async def _build_reaction_summary(
-        self,
-        user_id: int,
-        movie_id: int
+        self, user_id: int, movie_id: int
     ) -> MovieReactionSummarySchema:
-        """
-        Build a summary of reactions for a movie and a user.
+        cache_key = f"movie:{movie_id}:reactions:user:{user_id}"
+        cached = await self.cache.get(cache_key)
+        if cached:
+            return MovieReactionSummarySchema(**cached)
 
-        :param user_id: The ID of the user.
-        :param movie_id: The ID of the movie.
-        :return: A MovieReactionSummarySchema object.
-        """
         likes, dislikes = await self.repo.get_movie_reaction_counts(movie_id)
         user_reaction = await self.repo.get_user_movie_reaction(
             user_id, movie_id
@@ -302,34 +359,38 @@ class MovieService:
         else:
             reaction_str = None
 
-        return MovieReactionSummarySchema(
+        result = MovieReactionSummarySchema(
             movie_id=movie_id,
             likes=likes,
             dislikes=dislikes,
-            user_reaction=reaction_str
+            user_reaction=reaction_str,
         )
 
+        # short TTL – reactions change often
+        await self.cache.set(cache_key, result.model_dump(), ttl=60)
+        return result
+
     async def like_movie(
-        self,
-        user_id: int,
-        movie_id: int
+        self, user_id: int, movie_id: int
     ) -> MovieReactionActionResponseSchema:
-        """
-        Like a movie.
+        """Like a movie.
 
         :param user_id: The ID of the user.
         :param movie_id: The ID of the movie.
         :return: A MovieReactionActionResponseSchema object.
         """
         log.info(f"Like movie | user_id={user_id} movie_id={movie_id}")
+
         await self._ensure_movie_exists(movie_id)
 
         await self.repo.upsert_movie_reaction(
-            user_id=user_id,
-            movie_id=movie_id,
-            is_like=True
+            user_id=user_id, movie_id=movie_id, is_like=True
         )
         await self.repo.commit()
+
+        # invalidate reactions cache for this user+movie
+        await self.cache.delete(f"movie:{movie_id}:reactions:user:{user_id}")
+        await self._invalidate_movie_list_cache(user_id)
 
         summary = await self._build_reaction_summary(user_id, movie_id)
         return MovieReactionActionResponseSchema(
@@ -337,16 +398,13 @@ class MovieService:
             action="like",
             likes=summary.likes,
             dislikes=summary.dislikes,
-            user_reaction=summary.user_reaction
+            user_reaction=summary.user_reaction,
         )
 
     async def dislike_movie(
-        self,
-        user_id: int,
-        movie_id: int
+        self, user_id: int, movie_id: int
     ) -> MovieReactionActionResponseSchema:
-        """
-        Dislike a movie.
+        """Dislike a movie.
 
         :param user_id: The ID of the user.
         :param movie_id: The ID of the movie.
@@ -356,11 +414,13 @@ class MovieService:
         await self._ensure_movie_exists(movie_id)
 
         await self.repo.upsert_movie_reaction(
-            user_id=user_id,
-            movie_id=movie_id,
-            is_like=False
+            user_id=user_id, movie_id=movie_id, is_like=False
         )
         await self.repo.commit()
+
+        # invalidate reactions cache for this user+movie
+        await self.cache.delete(f"movie:{movie_id}:reactions:user:{user_id}")
+        await self._invalidate_movie_list_cache(user_id)
 
         summary = await self._build_reaction_summary(user_id, movie_id)
         return MovieReactionActionResponseSchema(
@@ -368,16 +428,13 @@ class MovieService:
             action="dislike",
             likes=summary.likes,
             dislikes=summary.dislikes,
-            user_reaction=summary.user_reaction
+            user_reaction=summary.user_reaction,
         )
 
     async def remove_movie_reaction(
-        self,
-        user_id: int,
-        movie_id: int
+        self, user_id: int, movie_id: int
     ) -> MovieReactionActionResponseSchema:
-        """
-        Remove a reaction from a movie.
+        """Remove a reaction from a movie.
 
         :param user_id: The ID of the user.
         :param movie_id: The ID of the movie.
@@ -391,22 +448,23 @@ class MovieService:
         await self.repo.remove_movie_reaction(user_id, movie_id)
         await self.repo.commit()
 
+        # invalidate reactions cache for this user+movie
+        await self.cache.delete(f"movie:{movie_id}:reactions:user:{user_id}")
+        await self._invalidate_movie_list_cache(user_id)
+
         summary = await self._build_reaction_summary(user_id, movie_id)
         return MovieReactionActionResponseSchema(
             movie_id=movie_id,
             action="removed",
             likes=summary.likes,
             dislikes=summary.dislikes,
-            user_reaction=summary.user_reaction
+            user_reaction=summary.user_reaction,
         )
 
     async def get_movie_reactions(
-        self,
-        user_id: int,
-        movie_id: int
+        self, user_id: int, movie_id: int
     ) -> MovieReactionSummarySchema:
-        """
-        Get reactions summary for a movie.
+        """Get reactions summary for a movie.
 
         :param user_id: The ID of the user.
         :param movie_id: The ID of the movie.
@@ -415,12 +473,18 @@ class MovieService:
         log.info(
             f"Fetching movie reactions | user_id={user_id} movie_id={movie_id}"
         )
+
+        cache_key = f"movie:{movie_id}:reactions:user:{user_id}"
+        cached = await self.cache.get(cache_key)
+        if cached:
+            return MovieReactionSummarySchema(**cached)
+
         movie = await self.repo.get_movie_basic(movie_id)
         if not movie:
             log.warning(f"Movie not found for reaction | movie_id={movie_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Movie with ID {movie_id} not found."
+                detail=f"Movie with ID {movie_id} not found.",
             )
 
         likes, dislikes = await self.repo.get_movie_reaction_counts(movie_id)
@@ -435,65 +499,70 @@ class MovieService:
         else:
             reaction = None
 
-        return MovieReactionSummarySchema(
+        result = MovieReactionSummarySchema(
             movie_id=movie_id,
             likes=likes,
             dislikes=dislikes,
-            user_reaction=reaction
+            user_reaction=reaction,
         )
 
+        # short TTL because reactions change often
+        await self.cache.set(cache_key, result.model_dump(), ttl=60)
+
+        return result
+
     async def rate_movie(
-        self,
-        user_id: int,
-        movie_id: int,
-        payload: MovieRatingCreateSchema
+        self, user_id: int, movie_id: int, payload: MovieRatingCreateSchema
     ) -> MovieRatingSummarySchema:
-        """
-        Rate a movie.
+        """Rate a movie on a 1-10 scale.
 
         :param user_id: The ID of the user.
         :param movie_id: The ID of the movie.
-        :param payload: The rating given by the user.
-        :return: A MovieRatingSummarySchema object.
+        :param payload: A MovieRatingCreateSchema object containing the rating.
+        :return: A MovieRatingSummarySchema object containing the updated
+            rating summary.
         """
         log.info(f"Rate movie | user_id={user_id} movie_id={movie_id}")
+
         movie = await self.repo.get_movie_basic(movie_id)
         if not movie:
             log.warning(f"Movie not found for rating | movie_id={movie_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Movie with ID {movie_id} not found."
+                detail=f"Movie with ID {movie_id} not found.",
             )
 
         await self.repo.upsert_movie_rating(
-            user_id=user_id,
-            movie_id=movie_id,
-            rating=payload.rating
+            user_id=user_id, movie_id=movie_id, rating=payload.rating
         )
 
         await self.repo.commit()
 
-        avg_rating, count, user_rating = (
-            await self.repo.get_movie_rating_summary(
-                user_id=user_id,
-                movie_id=movie_id
-            )
+        # invalidate rating summary cache
+        await self.cache.delete(
+            f"movie:{movie_id}:rating_summary:user:{user_id}"
+        )
+        await self._invalidate_movie_list_cache(user_id)
+
+        (
+            avg_rating,
+            count,
+            user_rating,
+        ) = await self.repo.get_movie_rating_summary(
+            user_id=user_id, movie_id=movie_id
         )
 
         return MovieRatingSummarySchema(
             movie_id=movie_id,
             average_rating=avg_rating,
             ratings_count=count,
-            user_rating=user_rating
+            user_rating=user_rating,
         )
 
     async def delete_movie_rating(
-        self,
-        user_id: int,
-        movie_id: int
+        self, user_id: int, movie_id: int
     ) -> MovieRatingSummarySchema:
-        """
-        Delete a movie rating from a user.
+        """Delete a movie rating from a user.
 
         :param user_id: The ID of the user.
         :param movie_id: The ID of the movie.
@@ -502,39 +571,40 @@ class MovieService:
         log.info(
             f"Delete movie rating | user_id={user_id} movie_id={movie_id}"
         )
+
         movie = await self.repo.get_movie_basic(movie_id)
         if not movie:
             log.warning(f"Movie not found for rating | movie_id={movie_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Movie with ID {movie_id} not found."
+                detail=f"Movie with ID {movie_id} not found.",
             )
 
         await self.repo.delete_movie_rating(user_id=user_id, movie_id=movie_id)
 
         await self.repo.commit()
 
-        avg_rating, count, user_rating = (
-                await self.repo.get_movie_rating_summary(
-                user_id=user_id,
-                movie_id=movie_id
-            )
+        await self._invalidate_movie_list_cache(user_id)
+
+        (
+            avg_rating,
+            count,
+            user_rating,
+        ) = await self.repo.get_movie_rating_summary(
+            user_id=user_id, movie_id=movie_id
         )
 
         return MovieRatingSummarySchema(
             movie_id=movie_id,
             average_rating=avg_rating,
             ratings_count=count,
-            user_rating=user_rating
+            user_rating=user_rating,
         )
 
     async def get_movie_rating_summary(
-        self,
-        user_id: int,
-        movie_id: int
+        self, user_id: int, movie_id: int
     ) -> MovieRatingSummarySchema:
-        """
-        Get movie rating summary.
+        """Retrieve a movie rating summary for a user.
 
         :param user_id: The ID of the user.
         :param movie_id: The ID of the movie.
@@ -543,65 +613,71 @@ class MovieService:
         log.info(
             f"Get movie rating summary | user_id={user_id} movie_id={movie_id}"
         )
+
+        cache_key = f"movie:{movie_id}:rating_summary:user:{user_id}"
+        cached = await self.cache.get(cache_key)
+        if cached:
+            return MovieRatingSummarySchema(**cached)
+
         movie = await self.repo.get_movie_basic(movie_id)
         if not movie:
             log.warning(f"Movie not found for rating | movie_id={movie_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Movie with ID {movie_id} not found."
+                detail=f"Movie with ID {movie_id} not found.",
             )
 
-        avg_rating, count, user_rating = (
-                await self.repo.get_movie_rating_summary(
-                user_id=user_id,
-                movie_id=movie_id
-            )
+        (
+            avg_rating,
+            count,
+            user_rating,
+        ) = await self.repo.get_movie_rating_summary(
+            user_id=user_id, movie_id=movie_id
         )
 
-        return MovieRatingSummarySchema(
+        result = MovieRatingSummarySchema(
             movie_id=movie_id,
             average_rating=avg_rating,
             ratings_count=count,
-            user_rating=user_rating
+            user_rating=user_rating,
         )
 
+        await self.cache.set(cache_key, result.model_dump(), ttl=60)
+        return result
+
     async def add_to_favorites(
-        self,
-        user_id: int,
-        movie_id: int
+        self, user_id: int, movie_id: int
     ) -> FavoriteMovieResponseSchema:
-        """
-        Add a movie to user's favorites.
+        """Add a movie to user's favorites.
 
         :param user_id: The ID of the user.
         :param movie_id: The ID of the movie to be added.
-        :return: A FavoriteMovieResponseSchema object indicating whether 
+        :return: A FavoriteMovieResponseSchema object indicating whether
             the movie is in the user's favorites.
         """
         log.info(
             f"Adding movie to favorites | user_id={user_id} "
             f"movie_id={movie_id}"
         )
+
         movie = await self.repo.get_movie_basic(movie_id)
         if not movie:
             log.warning(f"Movie not found for favorite | movie_id={movie_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Movie with ID {movie_id} not found."
+                detail=f"Movie with ID {movie_id} not found.",
             )
 
         await self.repo.add_favorite(user_id, movie_id)
         await self.repo.commit()
+        await self._invalidate_movie_list_cache(user_id)
 
         return FavoriteMovieResponseSchema(movie_id=movie_id, is_favorite=True)
 
     async def remove_from_favorites(
-        self,
-        user_id: int,
-        movie_id: int
+        self, user_id: int, movie_id: int
     ) -> FavoriteMovieResponseSchema:
-        """
-        Remove a movie from user's favorites.
+        """Remove a movie from user's favorites.
 
         :param user_id: The ID of the user.
         :param movie_id: The ID of the movie to be removed.
@@ -612,16 +688,18 @@ class MovieService:
             f"Removing movie from favorites | user_id={user_id} "
             f"movie_id={movie_id}"
         )
+
         movie = await self.repo.get_movie_basic(movie_id)
         if not movie:
             log.warning(f"Movie not found for favorite | movie_id={movie_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Movie with ID {movie_id} not found."
+                detail=f"Movie with ID {movie_id} not found.",
             )
 
         await self.repo.remove_favorite(user_id, movie_id)
         await self.repo.commit()
+        await self._invalidate_movie_list_cache(user_id)
 
         return FavoriteMovieResponseSchema(
             movie_id=movie_id, is_favorite=False
@@ -633,29 +711,46 @@ class MovieService:
         filter_query: MovieFilterParams,
         sort_query: MovieSortParams,
     ):
+        """Retrieve a paginated list of the user's favorite movies.
+
+        :param user_id: The ID of the user.
+        :param filter_query: The filter options.
+        :param sort_query: The sorting options.
+
+        :return: A paginated list of the user's favorite movies.
+        """
         base_query = await self.repo.get_favorites_query(user_id)
 
         filtered_query = build_movie_filter_query(
             filter_query=filter_query,
             sort_query=sort_query,
-            base_query=base_query
+            base_query=base_query,
         )
 
         return await paginate(self.repo.db, filtered_query)
 
     async def add_comment(
-        self,
-        movie_id: int,
-        user_id: int,
-        payload: CommentCreateSchema
+        self, movie_id: int, user_id: int, payload: CommentCreateSchema
     ) -> CommentSchema:
+        """Add a comment to a movie.
+
+        :param movie_id: The ID of the movie.
+        :param user_id: The ID of the user.
+        :param payload: The comment data.
+        :return: The created comment object.
+        :raises HTTPException:
+            - `404 Not Found` if the movie does not exist
+            - `400 Bad Request` if the parent comment does not exist or does
+                not belong to the same movie
+        """
         log.info(f"Adding comment | movie_id={movie_id} user_id={user_id}")
+
         movie = await self.repo.get_movie_basic(movie_id)
         if not movie:
             log.warning(f"Movie not found for comment | movie_id={movie_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Movie with ID {movie_id} not found."
+                detail=f"Movie with ID {movie_id} not found.",
             )
 
         parent = None
@@ -671,14 +766,14 @@ class MovieService:
                     detail=(
                         "Invalid parent comment. Parent comment does not exist"
                         " or does not belong to the same movie."
-                    )
+                    ),
                 )
 
         comment = await self.repo.create_comment(
             movie_id=movie_id,
             user_id=user_id,
             content=payload.content,
-            parent_id=payload.parent_id
+            parent_id=payload.parent_id,
         )
 
         await self.repo.commit()
@@ -689,7 +784,7 @@ class MovieService:
             send_comment_reply_notification.delay(
                 email=parent.user.email,
                 movie_title=movie.name,
-                reply_content=payload.content
+                reply_content=payload.content,
             )
             # WebSocket broadcasting for real‑time notifications
             await manager.send_to_user(
@@ -700,23 +795,32 @@ class MovieService:
                     "comment_id": comment.id,
                     "content": payload.content,
                     "parent_id": payload.parent_id,
-                    "created_at": comment.created_at.isoformat()
-                }
+                    "created_at": comment.created_at.isoformat(),
+                },
             )
 
         return CommentSchema.model_validate(comment)
 
-    async def list_comments(
-        self,
-        movie_id: int
-    ) -> list[CommentSchema]:
+    async def list_comments(self, movie_id: int) -> list[CommentSchema]:
+        """List comments for a specific movie.
+
+        Args:
+            movie_id (int): ID of the movie to list comments for.
+
+        Returns:
+            list[CommentSchema]: A list of comments for the movie.
+
+        Raises:
+            HTTPException: If the movie is not found.
+        """
         log.info(f"Listing comments | movie_id={movie_id}")
+
         movie = await self.repo.get_movie_basic(movie_id)
         if not movie:
             log.warning(f"Movie not found for comment | movie_id={movie_id}")
             raise HTTPException(
                 status_code=status.HTTP_404,
-                detail=f"Movie with ID {movie_id} not found."
+                detail=f"Movie with ID {movie_id} not found.",
             )
 
         comments = await self.repo.get_comments_for_movie(movie_id)
