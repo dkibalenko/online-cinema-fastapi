@@ -1598,6 +1598,71 @@ MAILHOG_USER / MAILHOG_PASSWORD
 
 No real emails are sent.
 
+## ⭐ Redis Caching Architecture for the Movie Catalog
+Caching is a core performance feature of the Movie Catalog service. The system uses Redis as a high‑speed, in‑memory cache to reduce database load, accelerate API responses, and provide a smoother user experience. The caching layer is designed around three principles: speed, correctness, and isolation per user.
+
+### What is Cached
+The service caches data that is expensive to compute or frequently requested:
+- Movie lists — paginated, sorted, and filtered results
+- Movie details — full metadata, genres, directors, stars
+- User reactions — likes/dislikes summary per movie
+- Rating summaries — aggregated rating data
+- Genre lists — with movie counts
+
+Each cache entry is scoped by user where appropriate to ensure personalization does not leak across accounts.
+
+### Cache Key Structure
+Keys follow a predictable, namespaced pattern:
+- `movies:list:{user_id}:{hash}` — cached movie list for a specific user and filter set
+- `movie:{movie_id}:detail:{user_id}` — movie detail with user‑specific fields
+- `movie:{movie_id}:reactions:user:{user_id}` — reaction summary
+- `movie:{movie_id}:rating_summary:user:{user_id}` — rating summary
+- `genres:with_count` — cached genre list
+
+This structure makes invalidation targeted and efficient.
+
+### How Invalidation Works
+Caching is only useful if stale data is never returned.
+
+The service uses event‑driven invalidation: whenever a user performs an action that changes data, only the affected cache keys are removed.
+
+Key invalidation rules include:
+- Movie created/updated/deleted
+  - Invalidate all movie lists: `movies:list:*`
+  - Invalidate movie detail for all users:`movie:{movie_id}:detail:*`
+- User likes/dislikes a movie
+  - Invalidate reaction summary for that user: `movie:{movie_id}:reactions:user:{user_id}`
+  - Invalidate that user’s movie lists:`movies:list:{user_id}:*`
+- User rates a movie
+  - Invalidate rating summary for that user: `movie:{movie_id}:rating_summary:user:{user_id}`
+- Genres updated
+  - Invalidate: `genres:with_count`
+
+This approach ensures correctness **without wiping the entire cache** unnecessarily.
+
+### TTL and Expiration Strategy
+Each cached entry has a configurable TTL (default: 10 minutes). This provides:
+- Automatic cleanup of unused keys
+- Protection against long‑term stale data
+- A balance between performance and freshness
+
+TTL is intentionally short for user‑specific data (reactions, ratings) and longer for static data (genres).
+
+### Performance Impact
+Redis caching significantly reduces response latency and database load.
+
+Endpoints that previously required multiple joins, aggregations, or user‑specific computations now return almost instantly when served from cache.
+
+This improves throughput under load and provides a smoother user experience.
+
+Caching is especially beneficial for endpoints that combine multiple joins, aggregations, or user‑specific computations.
+
+### Reliability and Safety
+The caching layer is designed to fail gracefully:
+- If Redis is unavailable, the service falls back to database queries.
+- Cache writes are non‑blocking and never affect the main request flow.
+- All cached values are JSON‑encoded using Pydantic’s safe encoder to avoid serialization issues (e.g., `Decimal`, `datetime`, `UUID`).
+
 ## ⭐ Database Seeding System
 The project includes a complete, asynchronous database seeding system designed to populate the initial dataset for the Online Cinema platform. It generates JSON seed files (if missing) and loads them into the database in a safe, idempotent way.
 
