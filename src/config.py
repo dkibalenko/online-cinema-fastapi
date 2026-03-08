@@ -73,6 +73,7 @@ class Settings(BaseAppSettings):
 
     CELERY_BROKER_URL: str
     CELERY_RESULT_BACKEND: str
+    CACHE_REDIS_URL: str
 
     JWT_SECRET_KEY_ACCESS: SecretStr
     JWT_SECRET_KEY_REFRESH: SecretStr
