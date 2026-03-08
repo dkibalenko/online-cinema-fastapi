@@ -1,23 +1,22 @@
 from fastapi import FastAPI
-from slowapi.middleware import SlowAPIMiddleware
-from slowapi.errors import RateLimitExceeded
 from fastapi.responses import JSONResponse
-
-from pagination import setup_pagination
-from logger_config import setup_logging
-from rate_limiting import limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from auth.router import router as auth_router
-from users.router import router as users_router
-from users.admin.router import router as admin_router
-from movies.router import router as movies_router
+from logger_config import setup_logging
 from movies.genres_router import router as genres_router
+from movies.router import router as movies_router
 from notifications.ws_router import router as ws_router
+from pagination import setup_pagination
+from rate_limiting import limiter
+from users.admin.router import router as admin_router
+from users.router import router as users_router
 
 
 def create_app(testing: bool = False) -> FastAPI:
-    """
-    Creates a FastAPI instance with the following configuration:
+    """Creates a FastAPI instance with the following configuration.
+
     - Logging is set up
     - The FastAPI instance has the title "Online Cinema" and a description
     - Debug mode is enabled if testing is True
@@ -30,7 +29,7 @@ def create_app(testing: bool = False) -> FastAPI:
         testing (bool): Whether to enable debug mode. Defaults to False.
 
     Returns:
-        FastAPI: The created FastAPI instance
+        FastAPI: The created FastAPI instance.
     """
     setup_logging()
 

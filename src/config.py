@@ -1,7 +1,9 @@
+# mypy: ignore-errors
+
 from pathlib import Path
 
-from pydantic_settings import BaseSettings
 from pydantic import SecretStr
+from pydantic_settings import BaseSettings
 
 
 class BaseAppSettings(BaseSettings):
@@ -46,7 +48,9 @@ class BaseAppSettings(BaseSettings):
     S3_BUCKET_NAME: str
 
     # Safe defaults
-    PATH_TO_AUTH_EMAIL_TEMPLATES_DIR: str = str(BASE_DIR / "auth" / "templates")
+    PATH_TO_AUTH_EMAIL_TEMPLATES_DIR: str = str(
+        BASE_DIR / "auth" / "templates"
+    )
     PATH_TO_CELERY_TASKS_EMAIL_TEMPLATES_DIR: str = str(
         BASE_DIR / "cinema_celery" / "tasks" / "templates"
     )
@@ -60,6 +64,12 @@ class BaseAppSettings(BaseSettings):
 
     @property
     def S3_STORAGE_ENDPOINT(self) -> str:
+        """Get the S3-compatible storage endpoint URL.
+
+        Returns:
+            str: The S3-compatible storage endpoint URL in the format
+                "http://host:port".
+        """
         return f"http://{self.S3_STORAGE_HOST}:{self.S3_STORAGE_PORT}"
 
 
@@ -81,4 +91,12 @@ class Settings(BaseAppSettings):
 
 
 def get_settings() -> BaseAppSettings:
-    return Settings()
+    """Retrieve the application settings.
+
+    This function returns an instance of the Settings class, which contains
+    the application settings.
+
+    Returns:
+        BaseAppSettings: An instance of the Settings class.
+    """
+    return Settings()  # type: ignore[call-arg]
