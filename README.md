@@ -1476,8 +1476,63 @@ This ensures:
 - No autogeneration happens inside Docker. Docker should only apply migrations, never create them.
 - Database schema is always up‑to‑date
 
+## ⭐ Email Subsystem Architecture
+
+### 1. `SMTPClient`
+A low‑level email sender.
+- Connects to SMTP
+- Sends MIME messages
+- No template logic
+- No domain logic
+- Reusable and testable
+
+### 2. TemplateRenderer
+A thin wrapper around Jinja2.
+- Loads templates
+- Renders HTML
+- No SMTP logic
+- No domain logic
+
+### 3. Domain‑Specific Email Senders
+#### `AuthEmailSender`
+Handles authentication‑related emails:
+- Activation
+- Activation complete
+- Password reset
+- Password reset complete
+
+Each method:
+- loads a specific template
+- renders it
+- sends via SMTP
+
+#### `CommentEmailSender`
+Handles comment reply notifications.
+- One template
+- One method
+- Fully typed
+
+### 4. Factories
+Two factory functions create the correct sender:
+```py
+create_auth_email_sender(settings)
+create_comment_email_sender(settings)
+```
+Each factory:
+- builds an `SMTPClient`
+- builds a `TemplateRenderer`
+- injects template names
+- returns the correct sender class
+
+### FastAPI Dependency Injection
+Auth email sender is injected via:
+```py
+def get_auth_email_sender(...) -> AuthEmailSenderInterface:
+```
+Comment email sender is used inside Celery tasks.
+
 ## ⭐ MailHog Integration (Local Email Testing)
-The project includes full integration with MailHog, a lightweight SMTP testing server used during development. MailHog captures outgoing emails (activation, password reset, notifications) without sending them to real inboxes. This allows safe, repeatable testing of all email‑related features.
+The project includes full integration with MailHog, a lightweight SMTP testing server used during development. MailHog captures outgoing emails (activation, password reset, comment replies) without sending them to real inboxes. This allows safe, repeatable testing of all email‑related features.
 
 ### How MailHog Works
 MailHog provides two separate interfaces:
@@ -1521,7 +1576,7 @@ This protects the Web UI at:
 http://localhost:8025
 ```
 
-#### ❌ SMTP Authentication
+#### ❌ SMTP Authentication (Not Supported)
 MailHog does not support:
 - AUTH LOGIN
 - AUTH PLAIN
@@ -1542,20 +1597,20 @@ SMTP_USERNAME=
 SMTP_PASSWORD=
 SMTP_USE_TLS=false
 ```
-These values are injected into the `EmailSender` class:
+These values are injected into the `SMTPClient` class:
 ```python
 smtp = aiosmtplib.SMTP(
-    hostname=self._hostname,
-    port=self._port,
-    start_tls=self._use_tls
+    hostname=self.hostname,
+    port=self.port,
+    start_tls=self.use_tls,
 )
 ```
 #### For MailHog:
-- `SMTP_USE_TLS` must be false
-- `SMTP_USERNAME` and `SMTP_PASSWORD` must be empty strings
+- `SMTP_USE_TLS` must be `False`
+- `SMTP_USERNAME` and `SMTP_PASSWORD` must be **empty** strings
 - TLS and authentication are automatically skipped
 
-This allows the `EmailSender` to work with both:
+This allows the same email subsystem to work with:
 - MailHog (local development)
 - Real SMTP providers (production)
 
