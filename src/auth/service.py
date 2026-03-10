@@ -29,7 +29,7 @@ from cinema_celery.tasks.email_tasks import (
 from config import BaseAppSettings
 from exceptions import BaseSecurityError
 from logger_config import get_logger
-from notifications.interfaces import EmailSenderInterface
+from notifications.interfaces import AuthEmailSenderInterface
 from users.models import User
 
 log = get_logger()
@@ -40,7 +40,7 @@ class AuthService:
         self,
         auth: AuthRepository,
         jwt: JWTAuthManagerInterface,
-        email_sender: EmailSenderInterface,
+        email_sender: AuthEmailSenderInterface,
     ):
         self.auth = auth
         self.jwt = jwt
@@ -70,7 +70,9 @@ class AuthService:
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"A user with email '{user_data.email}' already exists."
+                detail=(
+                    f"A user with email '{user_data.email}' already exists."
+                ),
             )
 
         # 2. Get default group
@@ -202,28 +204,37 @@ class AuthService:
         """
         log.info(f"Resend activation attempt for {email_data.email}")
 
-        user = await self.auth.get_user_by_email(email_data.email)
-
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
-            )
-
-        if user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User account is already active.",
-            )
-
-        # Delete old token if exists + create new
-        old_token = await self.auth.get_activation_token_by_user_id(user.id)
         try:
             async with self.auth.db.begin():
+                user = await self.auth.get_user_by_email(email_data.email)
+
+                if not user:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="User not found.",
+                    )
+
+                if user.is_active:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="User account is already active.",
+                    )
+
+                # Delete old token if exists + create new
+                old_token = await self.auth.get_activation_token_by_user_id(
+                    user.id
+                )
+
                 if old_token:
                     await self.auth.delete_activation_token(old_token)
-                new_token = ActivationToken(user_id=cast("int", user.id))
+
+                new_token = ActivationToken(user_id=user.id)
                 self.auth.add(new_token)
         except SQLAlchemyError as error:
+            log.error(
+                f"Error during resend activation token creation for "
+                f"{user.email}: {error}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred during activation token creation.",
@@ -486,6 +497,10 @@ class AuthService:
             self.auth.add(reset_token)
             await self.auth.commit()
         except SQLAlchemyError as error:
+            log.error(
+                f"Error during password reset token creation for "
+                f"{user.email}: {error}"
+            )
             await self.auth.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -563,6 +578,7 @@ class AuthService:
             await self.auth.delete_password_reset_token(token_record)
             await self.auth.commit()
         except SQLAlchemyError as error:
+            log.error(f"Error during password reset for {user.email}: {error}")
             await self.auth.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -608,6 +624,9 @@ class AuthService:
             user.password = data.new_password
             await self.auth.commit()
         except SQLAlchemyError as error:
+            log.error(
+                f"Error during password change for {user.email}: {error}"
+            )
             await self.auth.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
