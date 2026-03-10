@@ -1,11 +1,13 @@
 # Online Cinema
 
-This project is an actively developed, production‑grade RESTful API built with FastAPI, SQLAlchemy 2.0, Celery, Redis, PostgreSQL, Docker, MinIO, MailHog and many other tools.  
-It already includes a complete pre-commit hook, CI pipeline, authentication system, user management, movie catalog with genres/stars/directors, likes, ratings, email workflows, and a fully containerized multi‑service architecture.
+**Online Cinema API** is an actively developed, production‑grade backend built with **FastAPI**, **SQLAlchemy 2.0**, **Celery**, **Redis**, **PostgreSQL**, **Docker**, **MinIO**, **MailHog**, and a modern Python toolchain.
+It already includes a complete **pre‑commit workflow**, **CI pipeline**, **authentication system**, **user management**, **movie catalog** (genres, stars, directors), **likes**, **ratings**, **email workflows**, and a fully containerized **multi‑service architecture**.
 
-I continue expanding the system daily — CD, deployment, and automated test coverage are next on the roadmap. The goal is to **demonstrate real backend engineering practices**, not just CRUD endpoints.
+This project is not a simple CRUD demo — it’s a real backend system designed to showcase **professional engineering practices**, including strict typing, deterministic tooling, domain‑oriented design, and automated quality checks.
 
-An online cinema is a digital platform that allows users to select, watch, and purchase access to movies and other video materials via the internet.
+Development is ongoing. Upcoming milestones include **CD**, **deployment automation**, and expanded **test coverage**.
+
+An online cinema is a digital platform that allows users to browse, watch, and purchase access to movies and other video content over the internet.
 
 ## ⭐ Build & Quality Status
 
@@ -117,6 +119,105 @@ Your CI pipeline ensures that every commit meets the same strict standards you e
 - reproducible builds
 
 This creates a stable foundation for development and prevents regressions before they reach the main codebase.
+
+## ⭐ Architecture Overview
+The system follows a **modular**, **service‑oriented architecture** designed for clarity, scalability, and real‑world backend workflows.
+Each component is isolated, typed, and tested, with clear boundaries between domains.
+
+### Core architectural principles
+- **Domain‑oriented design** — authentication, users, movies, notifications, storage, and background tasks are separated into clean domains.
+- **Async‑first stack** — FastAPI, async SQLAlchemy, async Redis, async S3 clients, async email sending.
+- **Task offloading** — Celery workers handle heavy or slow operations (email sending, media processing, analytics).
+- **Containerized multi‑service environment** — API, PostgreSQL, Redis, Celery, Flower, MinIO, MailHog all run in isolated Docker services.
+- **Strict typing & deterministic tooling** — mypy, Ruff, pytest, and pre‑commit enforce code quality at every step.
+- **CI‑driven development** — every push runs linting, formatting checks, type checks, tests, and coverage reporting.
+
+### High‑level architecture
+- **FastAPI application** — main entrypoint, routing, dependency injection, validation.
+- **SQLAlchemy 2.0 ORM** — async engine, models, migrations via Alembic.
+- **Redis** — caching, rate limiting, and Celery broker.
+- **Celery workers** — background jobs (email, media tasks).
+- **MinIO (S3‑compatible)** — object storage for images and media.
+- **MailHog** — local SMTP server for email testing.
+- **Docker Compose** — orchestrates all services for local development.
+
+### Features
+This project already includes a rich set of real‑world backend features:
+#### User & Auth
+- JWT‑based authentication (access + refresh tokens)
+- Registration, login, logout
+- Password hashing (bcrypt)
+- Email confirmation workflows
+- Password reset flows
+
+#### Movie Catalog
+- Movies, genres, directors, actors
+- Pagination, filtering, sorting
+- Likes, ratings, and user interactions
+- Admin‑friendly structure for future CMS integration
+
+#### Email Workflows
+- Domain‑specific email senders (Auth, Comments, etc.)
+- Templated emails via Jinja2
+- Async SMTP sending (aiosmtplib)
+- MailHog integration for local testing
+
+#### Background Tasks
+- Celery workers for async jobs
+- Redis broker + backend
+- Flower dashboard for monitoring
+
+#### Storage & Media
+- MinIO S3 bucket for media files
+- Async uploads and retrieval
+- Validation and processing hooks
+
+#### Quality & Tooling
+- Pre‑commit hooks (Ruff, mypy, pytest)
+- CI pipeline (linting, typing, tests, coverage)
+- Codecov integration
+- Strict typing across the codebase
+- Deterministic formatting and import sorting
+
+#### Developer Experience
+- Fully containerized environment
+- Local development with hot reload
+- Clear project structure
+- Reproducible builds via Poetry
+
+### Tech Stack
+#### Backend Framework
+- **FastAPI** — async, modern Python web framework
+- **Pydantic v2** — validation, settings management
+- **SQLAlchemy 2.0** — async ORM with modern query syntax
+
+#### Databases & Storage
+- **PostgreSQL** — relational database
+- **Redis** — caching, rate limiting, Celery broker
+- **MinIO** — S3‑compatible object storage
+
+#### Async & Background Processing
+- **Celery** — distributed task queue
+- **Flower** — task monitoring dashboard
+
+#### Email
+- **aiosmtplib** — async SMTP client
+- **MailHog** — local email testing
+- **Jinja2** — templated email rendering
+
+#### Tooling & Dev Experience
+- **Poetry** — dependency management
+- **Ruff** — linting + formatting
+- **mypy** — static typing
+- **pytest** — testing framework
+- **pytest‑cov** — coverage reporting
+- **pre‑commit** — automated code quality checks
+- **Docker Compose** — multi‑service orchestration
+
+
+#### CI/CD
+- **GitHub Actions** — CI pipeline (linting, typing, tests, coverage)
+- **Codecov** — coverage analytics and PR annotations
 
 ## ⭐ Authentication System
 The authentication subsystem provides a complete, secure, and production‑ready identity flow for the Online Cinema platform. It includes user onboarding, JWT‑based authentication, role‑based access control, and asynchronous email notifications.
