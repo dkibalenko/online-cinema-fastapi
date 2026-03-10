@@ -1,24 +1,24 @@
-from sqlalchemy import select, or_, Select
+from sqlalchemy import Select, or_, select
 
-from movies.models import Movie, Star, Director, MoviesGenresModel
+from movies.models import Director, Movie, MoviesGenresModel, Star
 from movies.schemas import MovieFilterParams, MovieSortParams
 
 
 def build_movie_filter_query(
     filter_query: MovieFilterParams,
     sort_query: MovieSortParams,
-    base_query: Select | None = None
+    base_query: Select | None = None,
 ) -> Select:
-    """
-    Builds a SQLAlchemy select statement for filtering and sorting movies
+    """Builds a SQLAlchemy select statement for filtering and sorting movies.
 
-    Parameters:
-    filter_query (MovieFilterParams): object containing filter parameters
-    sort_query (MovieSortParams): object containing sort parameters
-    base_query (select, optional): base query to build upon
+    Args:
+        filter_query (MovieFilterParams): The filter options.
+        sort_query (MovieSortParams): The sorting options.
+        base_query (Select, optional): A base query to build upon.
+            Defaults to None.
 
     Returns:
-    select: SQLAlchemy select statement with applied filters and sorting
+        Select: The SQLAlchemy select statement.
     """
     # base query. ensures that joins (stars, directors) don’t duplicate rows
     stmt = base_query if base_query is not None else select(Movie)
@@ -37,8 +37,7 @@ def build_movie_filter_query(
         # join relationships needed for searching
         # use outerjoin so we don't exclude movies that have no stars/directors
         stmt = (
-            stmt
-            .outerjoin(Movie.stars)
+            stmt.outerjoin(Movie.stars)
             .outerjoin(Movie.directors)
             .where(
                 or_(
@@ -65,8 +64,7 @@ def build_movie_filter_query(
 
     # 4. Apply Sorting
     sort_col = getattr(Movie, sort_query.sort_by)
-    stmt = stmt.order_by(
+
+    return stmt.order_by(
         sort_col.desc() if sort_query.order == "desc" else sort_col.asc()
     )
-
-    return stmt

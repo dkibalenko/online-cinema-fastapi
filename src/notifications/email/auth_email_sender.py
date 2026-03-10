@@ -11,6 +11,7 @@ class AuthEmailSender(AuthEmailSenderInterface):
 
     Handles tasks such as account activation and password reset emails.
     """
+
     def __init__(
         self,
         smtp: SMTPClient,
@@ -30,9 +31,7 @@ class AuthEmailSender(AuthEmailSenderInterface):
         )
 
     async def send_activation_email(
-        self,
-        email: str,
-        activation_link: str
+        self, email: str, activation_link: str
     ) -> None:
         """Asynchronously send an email with an account activation link.
 
@@ -56,9 +55,7 @@ class AuthEmailSender(AuthEmailSenderInterface):
         await self.smtp.send(email, "Account Activation", html)
 
     async def send_activation_complete_email(
-        self,
-        email: str,
-        login_link: str
+        self, email: str, login_link: str
     ) -> None:
         """Asynchronously send email confirming the account has been activated.
 
@@ -83,9 +80,7 @@ class AuthEmailSender(AuthEmailSenderInterface):
         await self.smtp.send(email, "Account Activated", html)
 
     async def send_password_reset_email(
-        self,
-        email: str,
-        reset_link: str
+        self, email: str, reset_link: str
     ) -> None:
         """Asynchronously send an email with a password reset link.
 
@@ -102,16 +97,13 @@ class AuthEmailSender(AuthEmailSenderInterface):
         html = template.render(email=email, reset_link=reset_link)
 
         log.debug(
-            f"Rendered password reset template "
-            f"({len(html)} chars) for {email}"
+            f"Rendered password reset template ({len(html)} chars) for {email}"
         )
 
         await self.smtp.send(email, "Password Reset", html)
 
     async def send_password_reset_complete_email(
-        self,
-        email: str,
-        login_link: str
+        self, email: str, login_link: str
     ) -> None:
         """Asynchronously send an email confirming the password has been reset.
 

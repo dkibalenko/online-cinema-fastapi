@@ -30,7 +30,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     response_model=UserRegistrationResponseSchema,
     summary="User Registration",
     description="Registers a new user and sends an activation email.",
-    responses = {
+    responses={
         201: {"description": "The user was successfully registered."},
         400: {
             "description": "Bad Request. The email is already registered or "
@@ -70,7 +70,7 @@ async def register_user(
     response_model=MessageResponseSchema,
     summary="User Activation",
     description="Activates the user account using the activation token.",
-    responses = {
+    responses={
         200: {"description": "The user account was successfully activated."},
         400: {"description": "Bad Request. The token is invalid or expired."},
         404: {"description": "Not Found. The token was not found."},
@@ -104,7 +104,7 @@ async def activate_account(
     response_model=MessageResponseSchema,
     summary="Resend Activation Token",
     description="Resends the activation token to the user's email address.",
-    responses = {
+    responses={
         200: {
             "description": "The activation token was resent to the user email."
         },
@@ -142,7 +142,7 @@ async def resend_activation(
     response_model=UserLoginResponseSchema,
     summary="User login",
     description="Logs in the user and returns an access token.",
-    responses = {
+    responses={
         200: {"description": "The user was successfully logged in."},
         400: {
             "description": "Bad Request. The email or password is incorrect."
@@ -184,7 +184,7 @@ async def login_user(
     response_model=TokenRefreshResponseSchema,
     summary="Refresh Access Token",
     description="Refreshes the access token using the refresh token.",
-    responses = {
+    responses={
         200: {"description": "The access token was successfully refreshed."},
         400: {"description": "Bad Request. The refresh token is invalid."},
         401: {"description": "Unauthorized. The user is not authenticated."},
@@ -222,7 +222,7 @@ async def refresh_access_token(
     response_model=MessageResponseSchema,
     summary="Logout user",
     description="Logs out the user by invalidating the refresh token.",
-    responses = {
+    responses={
         200: {"description": "The user was successfully logged out."},
         400: {"description": "Bad Request. The token is invalid."},
         401: {"description": "Unauthorized. The user is not authenticated."},
@@ -258,7 +258,7 @@ async def logout_user(
     response_model=MessageResponseSchema,
     summary="Request Password Reset Token",
     description="Sends a password reset token to the user's email address.",
-    responses = {
+    responses={
         200: {
             "description": "The password reset token sent to the user's email."
         },
@@ -294,7 +294,7 @@ async def request_password_reset_token(
     response_model=MessageResponseSchema,
     summary="Complete Password Reset",
     description="Resets the user's password using a password reset token.",
-    responses = {
+    responses={
         200: {"description": "The password was successfully reset."},
         400: {"description": "Bad Request. The token is invalid or expired."},
         404: {"description": "Not Found. The token was not found."},
@@ -330,7 +330,7 @@ async def complete_password_reset(
     response_model=MessageResponseSchema,
     summary="Change Password",
     description="Changes the password for the currently authenticated user.",
-    responses = {
+    responses={
         200: {"description": "The password was successfully changed."},
         403: {"description": "Forbidden. The user is not authenticated."},
         400: {"description": "Bad Request. The old password is incorrect."},

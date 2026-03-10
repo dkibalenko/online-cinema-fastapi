@@ -13,14 +13,16 @@ class UserRepository:
         self.db = db
 
     async def get_by_id(self, user_id: int) -> User | None:
-        result = await self.db.execute(
-            select(User).where(User.id == user_id)
-        )
+        """Retrieves a user by their ID.
+
+        :param user_id: The ID of the user to retrieve.
+        :return: The user with the given ID, or None if no user is found.
+        """
+        result = await self.db.execute(select(User).where(User.id == user_id))
         return result.scalar_one_or_none()
 
     async def get_by_id_with_group(self, user_id: int) -> User | None:
-        """
-        Retrieves a user by their ID including their associated group.
+        """Retrieves a user by their ID including their associated group.
 
         :param user_id: The ID of the user to retrieve.
         :return: The user with their associated group, or None.
@@ -34,8 +36,7 @@ class UserRepository:
         return result.scalar_one_or_none()
 
     async def get_by_id_with_profile(self, user_id: int) -> User | None:
-        """
-        Retrieves a user by their ID including their associated profile.
+        """Retrieves a user by their ID including their associated profile.
 
         :param user_id: The ID of the user to retrieve.
         :return: The user with their associated profile, or None.
@@ -47,37 +48,75 @@ class UserRepository:
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
-    
+
     async def get_by_email(self, email: str) -> User | None:
-        """
-        Retrieves a user by their email address.
-        """
+        """Retrieves a user by their email address."""
         stmt = select(User).where(User.email == email)
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_default_user_group(self) -> UserGroup | None:
-        """
-        Retrieves the default user group, i.e. the group with name USER.
-        """
+        """Retrieves the default user group, i.e. the group with name USER."""
         stmt = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
     def add(self, instance: Any) -> None:
+        """Adds an instance to the database.
+
+        :param instance: The instance to add.
+        :return: None
+        """
         self.db.add(instance)
 
     async def delete(self, instance: Any) -> None:
+        """Deletes an instance from the database.
+
+        :param instance: The instance to delete.
+        :return: None
+        """
         await self.db.delete(instance)
 
     async def flush(self) -> None:
+        """Flushes the current database session.
+
+        This method flushes the current database session, saving any
+        pending changes to the database.
+
+        :return: None
+        """
         await self.db.flush()
 
     async def commit(self) -> None:
+        """Commits the current transaction.
+
+        This method commits the current transaction. It is generally used
+        after successful operations to persist the changes made in the
+        transaction.
+
+        :raises: NoResultFound
+        """
         await self.db.commit()
 
     async def rollback(self) -> None:
+        """Rolls back the current transaction.
+
+        This method rolls back the current transaction. It is generally used
+        after an exception has been raised to revert the changes made in
+        the transaction.
+
+        :raises: NoResultFound
+        """
         await self.db.rollback()
 
     async def refresh(self, instance: Any) -> None:
+        """Refreshes the given object in the current database session.
+
+        This method refreshes the given object in the current database session.
+        It can be used to reload the object from the database after changes
+        have been made.
+
+        :param instance: The object to refresh.
+        :return: None
+        """
         await self.db.refresh(instance)

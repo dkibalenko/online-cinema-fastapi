@@ -1,18 +1,17 @@
 import pytest
+from auth.models import ActivationToken, RefreshToken
+from auth.token_manager import JWTAuthManager
 from httpx import AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from users.models import User
 
 from tests.settings import get_test_settings
-from auth.token_manager import JWTAuthManager
-from users.models import User
-from auth.models import ActivationToken, RefreshToken
 
 
 @pytest.mark.asyncio
 async def test_register(client: AsyncClient, test_engine, default_user_group):
-    """
-    Tests the user registration endpoint.
+    """Tests the user registration endpoint.
 
     Ensures that a new user is created with the correct group ID,
     and that the user is inserted into the database correctly.
@@ -31,9 +30,7 @@ async def test_register(client: AsyncClient, test_engine, default_user_group):
     assert response.status_code == 201
 
     async_session = async_sessionmaker(
-        test_engine,
-        expire_on_commit=False,
-        class_=AsyncSession
+        test_engine, expire_on_commit=False, class_=AsyncSession
     )
     async with async_session() as session:
         user = await session.scalar(
@@ -44,12 +41,9 @@ async def test_register(client: AsyncClient, test_engine, default_user_group):
 
 @pytest.mark.asyncio
 async def test_activate_account(
-    client: AsyncClient,
-    test_engine,
-    default_user_group
+    client: AsyncClient, test_engine, default_user_group
 ):
-    """
-    Tests the user activation endpoint.
+    """Tests the user activation endpoint.
 
     Creates a user and an activation token, calls the activation endpoint
     with the correct email and token, and asserts that the user is activated
@@ -64,9 +58,7 @@ async def test_activate_account(
         None
     """
     async_session = async_sessionmaker(
-        test_engine,
-        expire_on_commit=False,
-        class_=AsyncSession
+        test_engine, expire_on_commit=False, class_=AsyncSession
     )
 
     # Create user + activation token
@@ -101,16 +93,14 @@ async def test_activate_account(
         assert refreshed_user.is_active is True
 
         deleted_token = await session.scalar(
-            select(ActivationToken)
-            .where(ActivationToken.user_id == user.id)
+            select(ActivationToken).where(ActivationToken.user_id == user.id)
         )
         assert deleted_token is None
 
 
 @pytest.mark.asyncio
 async def test_login(client: AsyncClient, test_engine, default_user_group):
-    """
-    Tests the login endpoint with JSON data.
+    """Tests the login endpoint with JSON data.
 
     Creates an active user, calls the login endpoint with the correct
     email and password, and asserts that the response contains an access
@@ -125,9 +115,7 @@ async def test_login(client: AsyncClient, test_engine, default_user_group):
         None
     """
     async_session = async_sessionmaker(
-        test_engine,
-        expire_on_commit=False,
-        class_=AsyncSession
+        test_engine, expire_on_commit=False, class_=AsyncSession
     )
 
     # Create active user
@@ -137,7 +125,7 @@ async def test_login(client: AsyncClient, test_engine, default_user_group):
             raw_password="Password123!",
             group_id=default_user_group.id,
         )
-        user.is_active=True
+        user.is_active = True
         session.add(user)
         await session.commit()
         await session.refresh(user)
@@ -156,12 +144,9 @@ async def test_login(client: AsyncClient, test_engine, default_user_group):
 
 @pytest.mark.asyncio
 async def test_refresh_token(
-    client: AsyncClient,
-    test_engine,
-    default_user_group
+    client: AsyncClient, test_engine, default_user_group
 ):
-    """
-    Tests the refresh token endpoint.
+    """Tests the refresh token endpoint.
 
     Creates an active user and a refresh token JWT with user_id claim,
     persists the matching RefreshToken record in the database,
@@ -179,9 +164,7 @@ async def test_refresh_token(
         None
     """
     async_session = async_sessionmaker(
-        test_engine,
-        expire_on_commit=False,
-        class_=AsyncSession
+        test_engine, expire_on_commit=False, class_=AsyncSession
     )
 
     # Use the same settings as the app (overridden in conftest)
@@ -199,7 +182,7 @@ async def test_refresh_token(
             raw_password="Password123!",
             group_id=default_user_group.id,
         )
-        user.is_active=True
+        user.is_active = True
         session.add(user)
         await session.flush()
 

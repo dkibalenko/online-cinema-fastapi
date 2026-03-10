@@ -1,5 +1,5 @@
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from users.models import User, UserProfile
 
@@ -9,8 +9,7 @@ class AdminUserProfileRepository:
         self.db = db
 
     async def get_user(self, user_id: int) -> User | None:
-        """
-        Retrieves a user by their ID.
+        """Retrieves a user by their ID.
 
         :param user_id: The ID of the user to retrieve.
         :return: The user with the given ID, or None if no user is found.
@@ -19,8 +18,7 @@ class AdminUserProfileRepository:
         return result.scalar_one_or_none()
 
     async def get_profile(self, user_id: int) -> UserProfile | None:
-        """
-        Retrieves a user's profile by their ID.
+        """Retrieves a user's profile by their ID.
 
         :param user_id: The ID of the user whose profile to retrieve.
         :return: The user's profile, or None if no profile is found.
@@ -31,8 +29,7 @@ class AdminUserProfileRepository:
         return result.scalar_one_or_none()
 
     async def create_profile(self, user: User, data: dict) -> UserProfile:
-        """
-        Creates a new user profile.
+        """Creates a new user profile.
 
         :param user: The user to associate the profile with.
         :param data: A dictionary containing the profile's data.
@@ -45,13 +42,9 @@ class AdminUserProfileRepository:
         return profile
 
     async def update_profile(
-        self,
-        profile:
-        UserProfile,
-        data: dict
+        self, profile: UserProfile, data: dict
     ) -> UserProfile:
-        """
-        Updates an existing user profile.
+        """Updates an existing user profile.
 
         :param profile: The user profile to update.
         :param data: A dictionary containing the profile's updated data.
@@ -64,8 +57,7 @@ class AdminUserProfileRepository:
         return profile
 
     async def delete_profile(self, profile: UserProfile):
-        """
-        Deletes an existing user profile.
+        """Deletes an existing user profile.
 
         :param profile: The user profile to delete.
         """

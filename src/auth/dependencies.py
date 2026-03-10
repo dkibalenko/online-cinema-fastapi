@@ -15,7 +15,7 @@ from database import get_db
 from exceptions import InvalidTokenError, TokenExpiredError
 from logger_config import get_logger
 from notifications.dependencies import get_auth_email_sender
-from notifications.interfaces import EmailSenderInterface
+from notifications.interfaces import AuthEmailSenderInterface
 from users.models import User, UserGroupEnum
 
 bearer_scheme = HTTPBearer()
@@ -24,7 +24,7 @@ log = get_logger()
 
 
 def get_auth_repository(
-    db: Annotated[AsyncSession, Depends(get_db)]
+    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> AuthRepository:
     """Dependency factory that returns an instance of the `AuthRepository`.
 
@@ -147,7 +147,7 @@ def require_role(*allowed_roles: UserGroupEnum):
     """
 
     def role_checker(
-        current_user: Annotated[User, Depends(get_current_user)]
+        current_user: Annotated[User, Depends(get_current_user)],
     ) -> User:
         # Check if user has any allowed role
         if not any(current_user.has_group(role) for role in allowed_roles):
@@ -165,18 +165,14 @@ def get_auth_service(
     auth: Annotated[AuthRepository, Depends(get_auth_repository)],
     jwt: Annotated[JWTAuthManagerInterface, Depends(get_jwt_auth_manager)],
     email_sender: Annotated[
-        EmailSenderInterface, Depends(get_auth_email_sender)
+        AuthEmailSenderInterface, Depends(get_auth_email_sender)
     ],
 ) -> AuthService:
-    """Dependency factory that returns an instance of the `AuthService` class.
-
-    The instance is constructed using the `AuthRepository`,
-    `JWTAuthManagerInterface` and `EmailSenderInterface` instances provided
-    by the dependencies.
+    """Dependency factory that returns an instance of the `AuthService`.
 
     :param auth: An instance of the `AuthRepository` class.
-    :param jwt: An instance of the `JWTAuthManagerInterface` class.
-    :param email_sender: An instance of the `EmailSenderInterface` class.
+    :param jwt: An instance of the `JWTAuthManager` class.
+    :param email_sender: An instance of the `AuthEmailSenderInterface` class.
     :return: An instance of the `AuthService` class.
     """
     return AuthService(auth=auth, jwt=jwt, email_sender=email_sender)

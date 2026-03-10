@@ -1,17 +1,15 @@
-from typing import Tuple
-
-from fastapi import status, HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
+from auth.interfaces import JWTAuthManagerInterface
 from exceptions import InvalidTokenError, TokenExpiredError
+from logger_config import get_logger
+from storages.exceptions import S3ConnectionError, S3FileUploadError
+from storages.interfaces import S3StorageInterface
 from users.enums import UserGroupEnum
 from users.models import UserProfile
 from users.repository import UserRepository
 from users.schemas import ProfileCreationSchema, ProfileUpdateSchema
-from auth.interfaces import JWTAuthManagerInterface
-from storages.exceptions import S3ConnectionError, S3FileUploadError
-from storages.interfaces import S3StorageInterface
-from logger_config import get_logger
 
 log = get_logger()
 
@@ -21,26 +19,23 @@ class UserService:
         self,
         users: UserRepository,
         jwt: JWTAuthManagerInterface,
-        s3_client: S3StorageInterface
+        s3_client: S3StorageInterface,
     ):
         self.users = users
         self.jwt = jwt
         self.s3_client = s3_client
 
     async def create_user_profile(
-        self,
-        user_id: int,
-        data: ProfileCreationSchema,
-        jwt_token: str
-    ) -> Tuple[UserProfile, str | None]:
-        """
-        Create user profile.
-            - Validates the JWT token and checks permissions.
-            - Loads the current user and target user.
-            - Checks permissions.
-            - Creates the user profile.
-            - Returns the created profile.
-        
+        self, user_id: int, data: ProfileCreationSchema, jwt_token: str
+    ) -> tuple[UserProfile, str | None]:
+        """Create user profile.
+
+        - Validates the JWT token and checks permissions.
+        - Loads the current user and target user.
+        - Checks permissions.
+        - Creates the user profile.
+        - Returns the created profile.
+
         :param user_id: The ID of the user for whom the profile is being
             created.
         :param data: The profile creation data.
@@ -53,26 +48,26 @@ class UserService:
         # 1. Validate token
         try:
             self.jwt.verify_access_token_or_raise(jwt_token)
-        except TokenExpiredError:
+        except TokenExpiredError as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token expired."
-            )
-        except InvalidTokenError:
+                detail="Token expired.",
+            ) from e
+        except InvalidTokenError as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token."
-            )
+                detail="Invalid token.",
+            ) from e
 
         jwt_payload = self.jwt.decode_access_token(jwt_token)
 
         try:
             current_user_id = int(jwt_payload.get("user_id"))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload."
-            )
+                detail="Invalid token payload.",
+            ) from e
 
         # 2. Load current user with group
         current_user = await self.users.get_by_id_with_group(current_user_id)
@@ -81,7 +76,7 @@ class UserService:
             log.warning(f"User not found | user_id={user_id}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found."
+                detail="User not found.",
             )
 
         # 3. Load target user
@@ -91,27 +86,26 @@ class UserService:
             log.warning(f"User not found or inactive | user_id={user_id}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or inactive."
+                detail="User not found or inactive.",
             )
 
         # 4. Check permissions
-        if (
-            not current_user_id == user_id
-            and not current_user.has_group(UserGroupEnum.ADMIN)
+        if current_user_id != user_id and not current_user.has_group(
+            UserGroupEnum.ADMIN
         ):
             log.warning(
                 f"Permission to edit profile denied | user_id={user_id}"
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to edit this profile."
+                detail="You don't have permission to edit this profile.",
             )
 
         # 5. Check if profile already exists
         if target_user.profile:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Profile already exists."
+                detail="Profile already exists.",
             )
 
         # 6. Upload avatar (optional)
@@ -132,15 +126,15 @@ class UserService:
                 log.info(
                     f"Avatar upload | user_id={user_id} filename={file_name}"
                 )
-            except (S3ConnectionError, S3FileUploadError):
+            except (S3ConnectionError, S3FileUploadError) as e:
                 log.error(
                     f"Failed to upload avatar | user_id={user_id} "
                     f"filename={file_name}"
                 )
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to upload avatar. Please try again later."
-                )
+                    detail="Failed to upload avatar. Please try again later.",
+                ) from e
 
         # 7. Create profile
         profile = UserProfile(
@@ -158,22 +152,20 @@ class UserService:
             await self.users.commit()
             await self.users.refresh(profile)
             log.info(f"Profile created | user_id={user_id}")
-        except IntegrityError:
+        except IntegrityError as e:
             log.error(f"Failed to create profile | user_id={user_id}")
             await self.users.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Error creating profile."
-            )
+                detail="Error creating profile.",
+            ) from e
 
         return profile, avatar_url
 
     async def get_my_profile(
-        self,
-        user_id: int
-    ) -> Tuple[UserProfile, str | None]:
-        """
-        Retrieves a user's profile by their ID.
+        self, user_id: int
+    ) -> tuple[UserProfile, str | None]:
+        """Retrieves a user's profile by their ID.
 
         :param user_id: The ID of the user whose profile to retrieve.
         :return: The user's profile, or None if no profile is found.
@@ -185,14 +177,14 @@ class UserService:
             log.warning(f"User not found or inactive | user_id={user_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found or inactive."
+                detail="User not found or inactive.",
             )
 
         if not user.profile:
             log.warning(f"Profile not created yet | user_id={user_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Profile not created yet."
+                detail="Profile not created yet.",
             )
 
         avatar_url = None
@@ -207,19 +199,16 @@ class UserService:
         return user.profile, avatar_url
 
     async def update_my_profile(
-        self,
-        user_id: int,
-        data: ProfileUpdateSchema,
-        jwt_token: str
-    ) -> Tuple[UserProfile, str | None]:
-        """
-        Updates a user's profile.
-            - Validates the JWT token and checks permissions.
-            - Loads the current user and target user.
-            - Checks permissions.
-            - Updates the user profile.
-            - Returns the updated profile.
-        
+        self, user_id: int, data: ProfileUpdateSchema, jwt_token: str
+    ) -> tuple[UserProfile, str | None]:
+        """Updates a user's profile.
+
+        - Validates the JWT token and checks permissions.
+        - Loads the current user and target user.
+        - Checks permissions.
+        - Updates the user profile.
+        - Returns the updated profile.
+
         :param user_id: The ID of the user whose profile to update.
         :param data: The profile update data.
         :param jwt_token: The JWT token for authentication.
@@ -231,12 +220,12 @@ class UserService:
         # 1. Validate token
         try:
             self.jwt.verify_access_token_or_raise(jwt_token)
-        except (TokenExpiredError, InvalidTokenError):
+        except (TokenExpiredError, InvalidTokenError) as e:
             log.warning(f"Invalid or expired token | user_id={user_id}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token."
-            )
+                detail="Invalid or expired token.",
+            ) from e
 
         # 2. Load user with profile
         user = await self.users.get_by_id_with_profile(user_id)
@@ -245,14 +234,14 @@ class UserService:
             log.warning(f"User not found or inactive | user_id={user_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found or inactive."
+                detail="User not found or inactive.",
             )
 
         if not user.profile:
             log.warning(f"Profile not created yet | user_id={user_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Profile not created yet."
+                detail="Profile not created yet.",
             )
 
         profile = user.profile
@@ -308,8 +297,8 @@ class UserService:
                 )
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to upload avatar."
-                )
+                    detail="Failed to upload avatar.",
+                ) from e
 
             profile.avatar = file_name
 
@@ -325,38 +314,34 @@ class UserService:
             await self.users.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Error updating profile."
-            )
+                detail="Error updating profile.",
+            ) from e
 
         return profile, avatar_url
 
-    async def delete_my_profile(
-        self,
-        user_id: int,
-        jwt_token: str
-    ) -> None:
-        """
-        Deletes a user's profile.
-            - Validates the JWT token and checks permissions.
-            - Loads the current user and target user.
-            - Checks permissions.
-            - Deletes the user profile and avatar from S3.
-        
-            :param user_id: The ID of the user whose profile to delete.
-            :param jwt_token: The JWT token for authentication.
-            :return: None
+    async def delete_my_profile(self, user_id: int, jwt_token: str) -> None:
+        """Deletes a user's profile.
+
+        - Validates the JWT token and checks permissions.
+        - Loads the current user and target user.
+        - Checks permissions.
+        - Deletes the user profile and avatar from S3.
+
+        :param user_id: The ID of the user whose profile to delete.
+        :param jwt_token: The JWT token for authentication.
+        :return: None
         """
         log.info(f"Deleting profile | user_id={user_id}")
 
         # 1. Validate token
         try:
             self.jwt.verify_access_token_or_raise(jwt_token)
-        except (TokenExpiredError, InvalidTokenError):
+        except (TokenExpiredError, InvalidTokenError) as e:
             log.warning(f"Invalid or expired token | user_id={user_id}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token."
-            )
+                detail="Invalid or expired token.",
+            ) from e
 
         # 2. Load user with profile
         user = await self.users.get_by_id_with_profile(user_id)
@@ -365,14 +350,14 @@ class UserService:
             log.warning(f"User not found or inactive | user_id={user_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found or inactive."
+                detail="User not found or inactive.",
             )
 
         if not user.profile:
             log.warning(f"Profile not created yet | user_id={user_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Profile not created yet."
+                detail="Profile not created yet.",
             )
 
         profile = user.profile
@@ -402,5 +387,5 @@ class UserService:
             await self.users.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Error deleting profile."
-            )
+                detail="Error deleting profile.",
+            ) from e

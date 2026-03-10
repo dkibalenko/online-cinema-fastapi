@@ -1,9 +1,8 @@
-from decimal import Decimal
-from typing import List, Optional
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class BaseSchema(BaseModel):
@@ -35,9 +34,9 @@ class MovieBaseSchema(BaseModel):
     votes: int = Field(..., ge=0, description="Number of votes on IMDb")
     description: str
 
-    meta_score: Optional[float] = Field(None, ge=0, le=100)
-    gross: Optional[Decimal] = Field(None, decimal_places=2)
-    price: Optional[Decimal] = Field(Decimal("0.00"), decimal_places=2)
+    meta_score: float | None = Field(None, ge=0, le=100)
+    gross: Decimal | None = Field(None, decimal_places=2)
+    price: Decimal | None = Field(Decimal("0.00"), decimal_places=2)
 
 
 class MovieListItemSchema(BaseSchema):
@@ -53,9 +52,9 @@ class MovieDetailSchema(MovieBaseSchema):
     id: int
     uu_id: uuid.UUID
     certification: CertificationSchema
-    genres: List[GenreSchema]
-    stars: List[StarSchema]
-    directors: List[DirectorSchema]
+    genres: list[GenreSchema]
+    stars: list[StarSchema]
+    directors: list[DirectorSchema]
     is_favorite: bool = False
 
     model_config = ConfigDict(from_attributes=True)
@@ -63,18 +62,41 @@ class MovieDetailSchema(MovieBaseSchema):
 
 class MovieCreateSchema(MovieBaseSchema):
     certification: str
-    genres: List[str] = Field(default_factory=list)
-    stars: List[str] = Field(default_factory=list)
-    directors: List[str] = Field(default_factory=list)
+    genres: list[str] = Field(default_factory=list)
+    stars: list[str] = Field(default_factory=list)
+    directors: list[str] = Field(default_factory=list)
 
     @field_validator("certification", mode="before")
     @classmethod
     def normalize_certification(cls, value: str) -> str:
+        """Normalize the certification field.
+
+        Strip leading/trailing whitespace and convert to uppercase if
+        the input is a string.
+
+        Args:
+            value (str): The certification string to normalize.
+
+        Returns:
+            str: The normalized certification string.
+        """
         return value.strip().upper() if isinstance(value, str) else value
 
     @field_validator("genres", "stars", "directors", mode="before")
     @classmethod
-    def normalize_list_fields(cls, values: List[str]) -> List[str]:
+    def normalize_list_fields(cls, values: list[str]) -> list[str]:
+        """Normalize a list of strings.
+
+        Convert to title case and strip leading/trailing whitespace.
+
+        If the input is not a list, return the input as is.
+
+        Args:
+            values (list[str]): The list of strings to normalize.
+
+        Returns:
+            list[str]: The normalized list of strings.
+        """
         if not isinstance(values, list):
             return values
         return [
@@ -83,15 +105,15 @@ class MovieCreateSchema(MovieBaseSchema):
 
 
 class MovieUpdateSchema(BaseModel):
-    name: Optional[str] = Field(None, max_length=255)
-    year: Optional[int] = Field(None, ge=1900, le=2026)
-    time: Optional[int] = Field(None, description="Duration in minutes")
-    imdb: Optional[float] = Field(None, ge=0, le=10)
-    votes: Optional[int] = Field(None, ge=0)
-    description: Optional[str] = None
-    meta_score: Optional[float] = Field(None, ge=0, le=100)
-    gross: Optional[Decimal] = Field(None, decimal_places=2)
-    price: Optional[Decimal] = Field(None, decimal_places=2)
+    name: str | None = Field(None, max_length=255)
+    year: int | None = Field(None, ge=1900, le=2026)
+    time: int | None = Field(None, description="Duration in minutes")
+    imdb: float | None = Field(None, ge=0, le=10)
+    votes: int | None = Field(None, ge=0)
+    description: str | None = None
+    meta_score: float | None = Field(None, ge=0, le=100)
+    gross: Decimal | None = Field(None, decimal_places=2)
+    price: Decimal | None = Field(None, decimal_places=2)
 
 
 class GenreWithCountSchema(BaseSchema):
@@ -101,35 +123,30 @@ class GenreWithCountSchema(BaseSchema):
 
 
 class MovieFilterParams(BaseModel):
-    genre_id: Optional[int] = Field(
-        None,
-        description="Filter movies by genre ID"
-    )
-    search: Optional[str] = Field(
+    genre_id: int | None = Field(None, description="Filter movies by genre ID")
+    search: str | None = Field(
         None, description="Search by title, description, star, or director"
     )
-    year: Optional[int] = Field(None, description="Filter by year")
-    min_imdb: Optional[float] = Field(
+    year: int | None = Field(None, description="Filter by year")
+    min_imdb: float | None = Field(
         None, description="Filter by minimum IMDb rating"
     )
-    min_price: Optional[float] = Field(
+    min_price: float | None = Field(
         None, description="Filter by minimum price"
     )
-    max_price: Optional[float] = Field(
+    max_price: float | None = Field(
         None, description="Filter by maximum price"
     )
 
 
 class MovieSortParams(BaseModel):
-    sort_by: Optional[str] = Field(
+    sort_by: str | None = Field(
         "id",
         pattern="^(id|name|year|imdb|votes|price)$",
-        description="Field to sort by"
+        description="Field to sort by",
     )
-    order: Optional[str] = Field(
-        "desc",
-        pattern="^(asc|desc)$",
-        description="Sort order: asc or desc"
+    order: str | None = Field(
+        "desc", pattern="^(asc|desc)$", description="Sort order: asc or desc"
     )
 
 
@@ -170,7 +187,7 @@ class FavoriteMovieListSchema(MovieListItemSchema):
 
 class CommentCreateSchema(BaseModel):
     content: str = Field(..., min_length=1, max_length=2000)
-    parent_id: Optional[int] = None
+    parent_id: int | None = None
 
 
 class CommentSchema(BaseSchema):
@@ -178,6 +195,6 @@ class CommentSchema(BaseSchema):
     movie_id: int
     user_id: int
     content: str
-    parent_id: Optional[int]
+    parent_id: int | None
     created_at: datetime
     updated_at: datetime

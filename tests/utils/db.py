@@ -1,12 +1,10 @@
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy import create_engine, text
-
 from database import Base
+from sqlalchemy import create_engine, text
+from sqlalchemy.ext.asyncio import create_async_engine
 
 
 async def create_test_engine(pg_url: str):
-    """
-    Creates a test PostgreSQL engine.
+    """Creates a test PostgreSQL engine.
 
     This function takes a PostgreSQL URL string and creates a test engine
     based on it.

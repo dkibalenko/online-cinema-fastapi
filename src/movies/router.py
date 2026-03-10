@@ -53,10 +53,8 @@ router = APIRouter(prefix="/movies", tags=["movies"])
         "Search by title, description, star, or director is also supported."
         "Order can be ascending or descending."
     ),
-    responses={
-        200: {"description": "List of movies retrieved successfully"}
-    },
-    status_code=status.HTTP_200_OK
+    responses={200: {"description": "List of movies retrieved successfully"}},
+    status_code=status.HTTP_200_OK,
 )
 @limiter.limit("60/minute")
 async def list_movies(
@@ -64,7 +62,7 @@ async def list_movies(
     filter_query: Annotated[MovieFilterParams, Depends()],
     sort_query: Annotated[MovieSortParams, Depends()],
     service: Annotated[MovieService, Depends(get_movie_service)],
-    user: Annotated[User, Depends(get_current_user)]
+    user: Annotated[User, Depends(get_current_user)],
 ) -> Page[MovieListItemSchema]:
     """Retrieve a paginated list of movies with optional filtering and sorting.
 
@@ -76,11 +74,7 @@ async def list_movies(
     Search by title, description, star, or director is also supported.
     Order can be ascending or descending.
     """
-    return await service.get_movie_list(
-        user.id,
-        filter_query,
-        sort_query
-    )
+    return await service.get_movie_list(user.id, filter_query, sort_query)
 
 
 @router.post(
@@ -101,10 +95,11 @@ async def list_movies(
         403: {"description": "Forbidden - insufficient permissions"},
         409: {"description": "Conflict - movie with same data already exists"},
     },
-    status_code=status.HTTP_201_CREATED)
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_movie(
     data: MovieCreateSchema,
-    service: Annotated[MovieService, Depends(get_movie_service)]
+    service: Annotated[MovieService, Depends(get_movie_service)],
 ) -> MovieDetailSchema:
     """Create a new movie. Requires MODERATOR or ADMIN role.
 
@@ -125,7 +120,7 @@ async def create_movie(
         200: {"description": "List of favorite movies retrieved successfully"},
         401: {"description": "Unauthorized - invalid or missing token"},
     },
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
 )
 async def list_favorites(
     filter_query: Annotated[MovieFilterParams, Depends()],
@@ -133,7 +128,7 @@ async def list_favorites(
     service: Annotated[
         MovieReactionService, Depends(get_movie_reaction_service)
     ],
-    user: Annotated[User, Depends(get_current_user)]
+    user: Annotated[User, Depends(get_current_user)],
 ) -> Page[FavoriteMovieListSchema]:
     """Retrieve a paginated list of the user's favorite movies.
 
@@ -171,14 +166,14 @@ async def list_favorites(
         401: {"description": "Unauthorized - invalid or missing token"},
         404: {"description": "Not Found - movie does not exist"},
     },
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
 )
 @limiter.limit("60/minute")
 async def get_movie(
     request: Request,
     movie_id: int,
     service: Annotated[MovieService, Depends(get_movie_service)],
-    user: Annotated[User, Depends(get_current_user)]
+    user: Annotated[User, Depends(get_current_user)],
 ) -> MovieDetailSchema:
     """Retrieve detailed information about a specific movie by its ID.
 
@@ -212,12 +207,12 @@ async def get_movie(
         403: {"description": "Forbidden - insufficient permissions"},
         404: {"description": "Not Found - movie does not exist"},
     },
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
 )
 async def update_movie(
     movie_id: int,
     data: MovieUpdateSchema,
-    service: Annotated[MovieService, Depends(get_movie_service)]
+    service: Annotated[MovieService, Depends(get_movie_service)],
 ) -> MovieDetailSchema:
     """Update an existing movie. Requires MODERATOR or ADMIN role.
 
@@ -248,11 +243,10 @@ async def update_movie(
         403: {"description": "Forbidden - insufficient permissions"},
         404: {"description": "Not Found - movie does not exist"},
     },
-    status_code=status.HTTP_204_NO_CONTENT
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_movie(
-    movie_id: int,
-    service: Annotated[MovieService, Depends(get_movie_service)]
+    movie_id: int, service: Annotated[MovieService, Depends(get_movie_service)]
 ):
     """Delete an existing movie. Requires MODERATOR or ADMIN role.
 
@@ -263,6 +257,7 @@ async def delete_movie(
         404: Not Found - movie does not exist
     """
     await service.delete_movie(movie_id)
+
 
 @router.post(
     "/{movie_id}/like",
@@ -378,7 +373,7 @@ async def remove_movie_reaction(
         401: {"description": "Unauthorized - invalid or missing token"},
         404: {"description": "Not Found - movie does not exist"},
     },
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
 )
 async def get_movie_reactions(
     movie_id: int,
@@ -415,7 +410,7 @@ async def get_movie_reactions(
             )
         },
     },
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
 )
 @limiter.limit("10/minute")
 async def rate_movie(
@@ -441,9 +436,7 @@ async def rate_movie(
     Rate Limit: 10 requests per minute
     """
     return await service.rate_movie(
-        user_id=user.id,
-        movie_id=movie_id,
-        payload=payload
+        user_id=user.id, movie_id=movie_id, payload=payload
     )
 
 
@@ -460,7 +453,7 @@ async def rate_movie(
         401: {"description": "Unauthorized - invalid or missing token"},
         404: {"description": "Not Found - movie does not exist"},
     },
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
 )
 async def delete_movie_rating(
     movie_id: int,
@@ -478,8 +471,7 @@ async def delete_movie_rating(
     :return: A MovieRatingSummarySchema object.
     """
     return await service.delete_movie_rating(
-        user_id=user.id,
-        movie_id=movie_id
+        user_id=user.id, movie_id=movie_id
     )
 
 
@@ -497,7 +489,7 @@ async def delete_movie_rating(
         401: {"description": "Unauthorized - invalid or missing token"},
         404: {"description": "Not Found - movie does not exist"},
     },
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
 )
 async def get_movie_rating_summary(
     movie_id: int,
@@ -512,8 +504,7 @@ async def get_movie_rating_summary(
     user's rating(if any).
     """
     return await service.get_movie_rating_summary(
-        user_id=user.id,
-        movie_id=movie_id
+        user_id=user.id, movie_id=movie_id
     )
 
 
@@ -530,7 +521,7 @@ async def get_movie_rating_summary(
         401: {"description": "Unauthorized - invalid or missing token"},
         404: {"description": "Not Found - movie does not exist"},
     },
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
 )
 @limiter.limit("20/minute")
 async def add_to_favorites(
@@ -539,7 +530,7 @@ async def add_to_favorites(
     service: Annotated[
         MovieReactionService, Depends(get_movie_reaction_service)
     ],
-    user: Annotated[User, Depends(get_current_user)]
+    user: Annotated[User, Depends(get_current_user)],
 ):
     """Add a movie to the user's list of favorite movies.
 
@@ -562,14 +553,14 @@ async def add_to_favorites(
         401: {"description": "Unauthorized - invalid or missing token"},
         404: {"description": "Not Found - movie does not exist"},
     },
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
 )
 async def remove_from_favorites(
     movie_id: int,
     service: Annotated[
         MovieReactionService, Depends(get_movie_reaction_service)
     ],
-    user: Annotated[User, Depends(get_current_user)]
+    user: Annotated[User, Depends(get_current_user)],
 ):
     """Remove a movie from the user's list of favorite movies.
 
@@ -600,7 +591,7 @@ async def remove_from_favorites(
         401: {"description": "Unauthorized - invalid or missing token"},
         404: {"description": "Not Found - movie does not exist"},
     },
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
 )
 @limiter.limit("10/minute")
 async def add_comment(
@@ -610,7 +601,7 @@ async def add_comment(
     service: Annotated[
         MovieCommentService, Depends(get_movie_comment_service)
     ],
-    user: Annotated[User, Depends(get_current_user)]
+    user: Annotated[User, Depends(get_current_user)],
 ):
     """Add a comment to a specific movie.
 
@@ -640,13 +631,13 @@ async def add_comment(
         200: {"description": "Comments retrieved successfully"},
         404: {"description": "Not Found - movie does not exist"},
     },
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
 )
 async def list_comments(
     movie_id: int,
     service: Annotated[
         MovieCommentService, Depends(get_movie_comment_service)
-    ]
+    ],
 ):
     """Retrieve a list of comments for a specific movie.
 

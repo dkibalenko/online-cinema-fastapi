@@ -16,7 +16,7 @@ from movies.service import (
 
 
 def get_movie_cache_invalidation_service(
-    cache: Annotated[CacheService, Depends(get_cache)]
+    cache: Annotated[CacheService, Depends(get_cache)],
 ) -> MovieCacheInvalidationService:
     """Returns an instance of MovieCacheInvalidationService.
 
@@ -31,8 +31,8 @@ def get_movie_service(
     cache: Annotated[CacheService, Depends(get_cache)],
     cache_invalidator: Annotated[
         MovieCacheInvalidationService,
-        Depends(get_movie_cache_invalidation_service)
-    ]
+        Depends(get_movie_cache_invalidation_service),
+    ],
 ) -> MovieService:
     """Returns an instance of MovieService.
 
@@ -50,8 +50,8 @@ def get_movie_reaction_service(
     cache: Annotated[CacheService, Depends(get_cache)],
     cache_invalidator: Annotated[
         MovieCacheInvalidationService,
-        Depends(get_movie_cache_invalidation_service)
-    ]
+        Depends(get_movie_cache_invalidation_service),
+    ],
 ) -> MovieReactionService:
     """Returns an instance of MovieReactionService.
 
@@ -66,7 +66,7 @@ def get_movie_reaction_service(
 
 
 def get_movie_comment_service(
-    db: Annotated[AsyncSession, Depends(get_db)]
+    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> MovieCommentService:
     """Returns an instance of MovieCommentService.
 

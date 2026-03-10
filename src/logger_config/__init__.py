@@ -1,1 +1,1 @@
-from logger_config.logger import setup_logging, get_logger
+from logger_config.logger import get_logger, setup_logging  # noqa: F401

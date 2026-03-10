@@ -1,12 +1,12 @@
 import enum
 
 
-class UserGroupEnum(str, enum.Enum):
+class UserGroupEnum(enum.StrEnum):
     USER = "user"
     MODERATOR = "moderator"
     ADMIN = "admin"
 
 
-class GenderEnum(str, enum.Enum):
+class GenderEnum(enum.StrEnum):
     MAN = "man"
     WOMAN = "woman"

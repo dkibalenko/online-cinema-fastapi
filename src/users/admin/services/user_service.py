@@ -2,9 +2,8 @@ from fastapi import HTTPException, status
 
 from logger_config import get_logger
 from users.admin.repositories.users import AdminUserRepository
-from users.models import UserGroupEnum, User
 from users.admin.schemas import UserFilterParams
-
+from users.models import User, UserGroupEnum
 
 log = get_logger()
 
@@ -14,11 +13,9 @@ class AdminUserService:
         self.repo = repo
 
     async def list_filtered_users(
-        self,
-        filters: UserFilterParams
+        self, filters: UserFilterParams
     ) -> list[User]:
-        """
-        Retrieves a list of users filtered by the given parameters.
+        """Retrieves a list of users filtered by the given parameters.
 
         :param filters: A UserFilterParams object containing filters to apply.
         :return: A list of User objects that match the given filters.
@@ -27,8 +24,7 @@ class AdminUserService:
         return await self.repo.filter_users(filters)
 
     async def update_group(self, user_id: int, group: UserGroupEnum):
-        """
-        Updates a user's group.
+        """Updates a user's group.
 
         :param user_id: The ID of the user to update.
         :param group: The new group for the user.
@@ -40,23 +36,20 @@ class AdminUserService:
         if not user:
             log.error(f"User with ID {user_id} not found.")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         group_obj = await self.repo.get_group(group)
         if not group_obj:
             log.error(f"Group {group} not found.")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Group not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Group not found"
             )
 
         return await self.repo.update_group(user, group_obj)
 
     async def activate_user(self, user_id: int):
-        """
-        Activates a user account, i.e. sets their is_active flag to True.
+        """Activates a user account, i.e. sets their is_active flag to True.
 
         :param user_id: The ID of the user to activate.
         :return: The activated user.
@@ -67,15 +60,13 @@ class AdminUserService:
         if not user:
             log.error(f"User with ID {user_id} not found.")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         return await self.repo.activate_user(user)
 
     async def deactivate_user(self, user_id: int):
-        """
-        Deactivates a user account, i.e. sets their is_active flag to False.
+        """Deactivates a user account, i.e. sets their is_active flag to False.
 
         :param user_id: The ID of the user to deactivate.
         :return: The deactivated user.
@@ -86,15 +77,13 @@ class AdminUserService:
         if not user:
             log.error(f"User with ID {user_id} not found.")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         return await self.repo.deactivate_user(user)
 
     async def reset_password(self, user_id: int, new_password: str):
-        """
-        Resets the password for a user with the given ID.
+        """Resets the password for a user with the given ID.
 
         :param user_id: The ID of the user to reset the password for.
         :param new_password: The new password for the user.
@@ -106,8 +95,7 @@ class AdminUserService:
         if not user:
             log.error(f"User with ID {user_id} not found.")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         user.password = new_password  # triggers hashing + validation

@@ -1,19 +1,17 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status, Request
+from fastapi import APIRouter, Depends, Request, status
 
-from rate_limiting import limiter
 from auth.dependencies import get_current_user
-from users.dependencies import get_users_service, get_token
-from users.service import UserService
+from rate_limiting import limiter
+from users.dependencies import get_token, get_users_service
 from users.models import User
-from auth.schemas import MessageResponseSchema
 from users.schemas import (
-    ProfileResponseSchema,
     ProfileCreationSchema,
-    ProfileUpdateSchema
+    ProfileResponseSchema,
+    ProfileUpdateSchema,
 )
-
+from users.service import UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -36,6 +34,14 @@ async def get_current_user_profile(
     current_user: Annotated[User, Depends(get_current_user)],
     users: Annotated[UserService, Depends(get_users_service)],
 ) -> ProfileResponseSchema:
+    """Retrieves the current user's profile.
+
+    :param request: The incoming request.
+    :param current_user: The current user.
+    :param users: The users service.
+    :return: The current user's profile.
+    :raises HTTPException: If the profile is not found.
+    """
     profile, avatar_url = await users.get_my_profile(current_user.id)
 
     return ProfileResponseSchema(
@@ -67,30 +73,39 @@ async def get_current_user_profile(
             )
         },
         401: {"description": "Unauthorized. The user is not authenticated."},
-        403: {"description": (
-            "Forbidden. The authenticated user does not have permission to "
-            "create a profile for this user."
+        403: {
+            "description": (
+                "Forbidden. The authenticated user does not have permission to"
+                " create a profile for this user."
             )
         },
         404: {"description": "Not found. The user does not exist."},
     },
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
 )
 @limiter.limit("3/minute")
 async def create_user_profile(
     request: Request,
     user_id: int,  # is sent separately in the path
     data: Annotated[
-        ProfileCreationSchema,
-        Depends(ProfileCreationSchema.as_form)
+        ProfileCreationSchema, Depends(ProfileCreationSchema.as_form)
     ],
     jwt_token: Annotated[str, Depends(get_token)],
     users: Annotated[UserService, Depends(get_users_service)],
 ) -> ProfileResponseSchema:
+    """Create a profile for the user with the specified ID.
+
+    Requires authentication.
+
+    :param user_id: The ID of the user for whom the profile is being created.
+    :param data: The profile creation data.
+    :param jwt_token: The JWT token for authentication.
+    :return: The newly created user profile.
+    :raises HTTPException: If the user is not found, if the profile already
+        exists, or if the user does not have admin privileges.
+    """
     profile, avatar_url = await users.create_user_profile(
-        user_id,
-        data,
-        jwt_token
+        user_id, data, jwt_token
     )
 
     return ProfileResponseSchema(
@@ -101,7 +116,7 @@ async def create_user_profile(
         date_of_birth=profile.date_of_birth,
         info=profile.info,
         avatar=avatar_url,
-        user_id=profile.user_id
+        user_id=profile.user_id,
     )
 
 
@@ -126,10 +141,20 @@ async def update_my_profile(
     users: Annotated[UserService, Depends(get_users_service)],
     jwt_token: Annotated[str, Depends(get_token)],
 ):
+    """Updates the current user's profile.
+
+    Requires authentication.
+
+    :param data: The profile update data.
+    :param current_user: The current user.
+    :param users: The users service.
+    :param jwt_token: The JWT token for authentication.
+    :return: The updated user profile.
+    :raises HTTPException: If the profile is not found, or if the user does not
+        have admin privileges.
+    """
     profile, avatar_url = await users.update_my_profile(
-        current_user.id,
-        data,
-        jwt_token
+        current_user.id, data, jwt_token
     )
 
     return ProfileResponseSchema(
@@ -161,4 +186,18 @@ async def delete_my_profile(
     users: Annotated[UserService, Depends(get_users_service)],
     jwt_token: Annotated[str, Depends(get_token)],
 ):
+    """Deletes the current user's profile. Requires authentication.
+
+    Parameters:
+        current_user (User): The current user.
+        users (UserService): The users service.
+        jwt_token (str): The JWT token for authentication.
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: If the profile is not found or if the user does not have
+            admin privileges.
+    """
     await users.delete_my_profile(current_user.id, jwt_token)

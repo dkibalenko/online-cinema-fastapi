@@ -1,22 +1,21 @@
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
-from moto import mock_aws
-
-from main import create_app
-from database import get_db
 from config import get_settings
-from tests.settings import get_test_settings
-from tests.utils.db import create_test_engine, drop_test_engine
+from database import get_db
+from httpx import ASGITransport, AsyncClient
+from main import create_app
+from moto import mock_aws
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from users.enums import UserGroupEnum
 from users.models import UserGroup
+
+from tests.settings import get_test_settings
+from tests.utils.db import create_test_engine, drop_test_engine
 
 
 @pytest.fixture(scope="session")
 def test_app():
-    """
-    Returns a FastAPI application instance with testing=True.
+    """Returns a FastAPI application instance with testing=True.
 
     This means that the SlowAPI middleware is not added, and rate limiting
     is disabled.
@@ -29,8 +28,7 @@ def test_app():
 
 @pytest.fixture(autouse=True)
 def disable_slowapi_decorators(monkeypatch):
-    """
-    Disables all rate limiting decorators in tests.
+    """Disables all rate limiting decorators in tests.
 
     This is useful for tests that don't care about rate limiting, and
     want to test the underlying code without the rate limiter getting in
@@ -50,10 +48,12 @@ def disable_slowapi_decorators(monkeypatch):
         # this test will use rate limiting
         pass
     """
+
     # Make all @limiter.limit decorators no‑ops in tests
     def no_limit(*args, **kwargs):
         def decorator(func):
             return func
+
         return decorator
 
     monkeypatch.setattr("rate_limiting.limiter.limit", no_limit)
@@ -63,9 +63,10 @@ def disable_slowapi_decorators(monkeypatch):
 # PostgreSQL URL from pytest-postgresql
 # -----------------------------
 @pytest.fixture(scope="session")
-def pg_url(postgresql_proc):  # session-scoped fixture. starts a Postgres instance on its first use and stops it when all tests are finished
-    """
-    Returns a PostgreSQL URL string from the pytest-postgresql fixture.
+def pg_url(
+    postgresql_proc,
+):  # session-scoped fixture. starts a Postgres instance on its first use and stops it when all tests are finished
+    """Returns a PostgreSQL URL string from the pytest-postgresql fixture.
 
     The URL is generated from the pytest-postgresql fixture's user, password,
     host, port, and database name.
@@ -90,8 +91,7 @@ def pg_url(postgresql_proc):  # session-scoped fixture. starts a Postgres instan
 # -----------------------------
 @pytest_asyncio.fixture
 async def test_engine(pg_url):
-    """
-    Creates a test PostgreSQL engine and drops it after the test is finished.
+    """Creates a test PostgreSQL engine and drops it after the test is finished.
 
     This fixture creates a test PostgreSQL engine using the given
     PostgreSQL URL.
@@ -114,8 +114,7 @@ async def test_engine(pg_url):
 # -----------------------------
 @pytest.fixture(autouse=True)
 def override_settings(test_app):
-    """
-    Overrides the get_settings dependency with get_test_settings.
+    """Overrides the get_settings dependency with get_test_settings.
 
     This fixture overrides the get_settings dependency with get_test_settings,
     which returns TestSettings. It then yields the test app, and finally
@@ -142,8 +141,7 @@ def override_settings(test_app):
 # -----------------------------
 @pytest.fixture(autouse=True)
 def override_db_dependency(test_app, test_engine):
-    """
-    Overrides the get_db dependency with an async session maker that uses
+    """Overrides the get_db dependency with an async session maker that uses
     the test_engine.
 
     This fixture overrides the get_db dependency with an async session maker
@@ -183,8 +181,7 @@ def override_db_dependency(test_app, test_engine):
 # -----------------------------
 @pytest_asyncio.fixture
 async def client(test_app):
-    """
-    An async fixture. Yields an AsyncClient instance connected to the test app.
+    """An async fixture. Yields an AsyncClient instance connected to the test app.
 
     The client is configured to use the ASGITransport, which allows the client
     to communicate with the test app over an in-memory ASGI server.
@@ -202,8 +199,7 @@ async def client(test_app):
 # -----------------------------
 @pytest.fixture
 def s3_mock():
-    """
-    A fixture that sets up a Moto mock for S3, which can be used to test code
+    """A fixture that sets up a Moto mock for S3, which can be used to test code
     that interacts with S3.
 
     The fixture uses `@pytest.fixture` marker, that means it's automatically
@@ -224,8 +220,7 @@ def s3_mock():
 
 @pytest_asyncio.fixture
 async def default_user_group(test_engine):
-    """
-    An async fixture that yields a UserGroup instance with name USER.
+    """An async fixture that yields a UserGroup instance with name USER.
 
     The fixture sets up a UserGroup instance with name USER in the test database,
     and yields the instance to the test.
@@ -241,9 +236,7 @@ async def default_user_group(test_engine):
     :rtype: UserGroup
     """
     async_session = async_sessionmaker(
-        test_engine,
-        expire_on_commit=False,
-        class_=AsyncSession
+        test_engine, expire_on_commit=False, class_=AsyncSession
     )
     async with async_session() as session:
         group = UserGroup(name=UserGroupEnum.USER)

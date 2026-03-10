@@ -2,11 +2,12 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict
 
-from users.enums import UserGroupEnum, GenderEnum
+from users.enums import GenderEnum, UserGroupEnum
 
 
 class UpdateGroupSchema(BaseModel):
     group: UserGroupEnum
+
 
 class UserAdminResponse(BaseModel):
     id: int
@@ -35,6 +36,7 @@ class AdminUserProfileCreateSchema(BaseModel):
     info: str | None = None
     avatar_url: str | None = None  # Admin can set URL directly
 
+
 class AdminUserProfileUpdateSchema(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
@@ -42,6 +44,7 @@ class AdminUserProfileUpdateSchema(BaseModel):
     birth_date: date | None = None
     info: str | None = None
     avatar_url: str | None = None
+
 
 class AdminUserProfileResponse(BaseModel):
     id: int

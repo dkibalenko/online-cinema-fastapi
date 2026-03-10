@@ -12,21 +12,16 @@ class CommentEmailSender(CommentEmailSenderInterface):
     Handles tasks such as sending notifications when someone replies to a
     user's comment.
     """
+
     def __init__(
-        self,
-        smtp: SMTPClient,
-        renderer: TemplateRenderer,
-        template_name: str
+        self, smtp: SMTPClient, renderer: TemplateRenderer, template_name: str
     ):
         self.smtp = smtp
         self.renderer = renderer
         self.template_name = template_name
 
     async def send_comment_reply_email(
-        self,
-        email: str,
-        movie_title: str,
-        reply_content: str
+        self, email: str, movie_title: str, reply_content: str
     ) -> None:
         """Asynchronously send an email when someone replies to their comment.
 
@@ -46,9 +41,7 @@ class CommentEmailSender(CommentEmailSenderInterface):
             movie_title=movie_title, reply_content=reply_content
         )
 
-        log.debug(
-            f"Rendered template ({len(html)} chars) for {email}"
-        )
+        log.debug(f"Rendered template ({len(html)} chars) for {email}")
 
         await self.smtp.send(
             email, f"New reply to your comment on {movie_title}", html

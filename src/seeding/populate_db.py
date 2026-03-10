@@ -1,28 +1,27 @@
-import json
 import asyncio
-from typing import Any, Dict, List
+import json
+import random
+from typing import Any
 
 import aiofiles
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from logger_config import setup_logging, get_logger
 from config import get_settings
 from database import get_db_contextmanager
-
-from users.models import UserGroup, UserGroupEnum
+from logger_config import get_logger, setup_logging
 from movies.models import (
-    Movie,
     Certification,
-    Genre,
-    Star,
     Director,
+    Genre,
+    Movie,
+    MoviesDirectorsModel,
     MoviesGenresModel,
     MoviesStarsModel,
-    MoviesDirectorsModel,
+    Star,
 )
-
 from seeding.generate_json import JsonDataGenerator
+from users.models import UserGroup, UserGroupEnum
 
 log = get_logger()
 
@@ -38,21 +37,25 @@ class InitialDatabaseSeeder:
             "movies": settings.MOVIE_JSON_PATH,
         }
 
-    async def _load_json(self, key: str) -> List[Dict[str, Any]]:
+    async def _load_json(self, key: str) -> list[dict[str, Any]]:
         path = self.paths[key]
-        async with aiofiles.open(path, "r", encoding="utf-8") as f:
+        async with aiofiles.open(path, encoding="utf-8") as f:
             return json.loads(await f.read())
 
     async def _insert_unique_by_name(
-        self,
-        model,
-        items: List[Dict[str, Any]]
-    ) -> Dict[str, int]:
-        """
-        Inserts items into the database if they don't already exist.
+        self, model, items: list[dict[str, Any]]
+    ) -> dict[str, int]:
+        """Inserts items into the database if they don't already exist.
+
         Returns a dictionary mapping item names to their IDs in the database.
+
+        Args:
+            model: The SQLAlchemy model to insert into.
+            items: A list of dictionaries representing the items to insert.
+
+        Returns:
+            A dictionary mapping item names to their IDs in the database.
         """
-        
         if not items:
             return {}
 
@@ -73,10 +76,8 @@ class InitialDatabaseSeeder:
         return existing
 
     async def _insert_movies(
-        self,
-        movies: List[Dict[str, Any]],
-        cert_map: Dict[str, int]
-    ) -> Dict[str, int]:
+        self, movies: list[dict[str, Any]], cert_map: dict[str, int]
+    ) -> dict[str, int]:
         if not movies:
             return {}
 
@@ -103,21 +104,19 @@ class InitialDatabaseSeeder:
 
     async def _seed_associations(
         self,
-        movie_map: Dict[str, int],
-        genre_map: Dict[str, int],
-        star_map: Dict[str, int],
-        director_map: Dict[str, int],
+        movie_map: dict[str, int],
+        genre_map: dict[str, int],
+        star_map: dict[str, int],
+        director_map: dict[str, int],
     ) -> None:
-        import random
-
         movie_ids = list(movie_map.values())
         genre_ids = list(genre_map.values())
         star_ids = list(star_map.values())
         director_ids = list(director_map.values())
 
-        movie_genres: List[Dict[str, int]] = []
-        movie_stars: List[Dict[str, int]] = []
-        movie_directors: List[Dict[str, int]] = []
+        movie_genres: list[dict[str, int]] = []
+        movie_stars: list[dict[str, int]] = []
+        movie_directors: list[dict[str, int]] = []
 
         for m_id in movie_ids:
             if genre_ids:
@@ -142,8 +141,9 @@ class InitialDatabaseSeeder:
             )
 
     async def _seed_user_groups(self) -> None:
-        """
-        Seeds the UserGroup table with the following groups:
+        """Seeds the UserGroup table.
+
+        Seeds the database with the following groups:
             - USER
             - MODERATOR
             - ADMIN
@@ -156,12 +156,8 @@ class InitialDatabaseSeeder:
             {"name": UserGroupEnum.ADMIN},
         ]
 
-        stmt = (
-            select(UserGroup)
-            .where(UserGroup.name.in_(
-                    [g["name"] for g in groups]
-                )
-            )
+        stmt = select(UserGroup).where(
+            UserGroup.name.in_([g["name"] for g in groups])
         )
         result = await self.db.execute(stmt)
         existing = {row.name for row in result.scalars().all()}
@@ -173,6 +169,21 @@ class InitialDatabaseSeeder:
             await self.db.flush()
 
     async def seed(self) -> None:
+        """Seeds the database with the required data.
+
+        1. Seeds user groups (`USER`, `MODERATOR`, `ADMIN`).
+        2. Loads JSON data for certification, genres, stars, directors, movies.
+        3. Inserts base tables for certifications, genres, stars, directors.
+        4. Inserts movies with certification reference.
+        5. Inserts many-to-many associations for movies:
+            - Genres (up to 3)
+            - Stars (up to 5)
+            - Directors (1)
+
+        Commits all changes after seeding is complete.
+
+        Logs a success message when seeding is finished.
+        """
         log.info("🔃 Starting database seeding...")
 
         # 1. Seed user groups
@@ -195,13 +206,32 @@ class InitialDatabaseSeeder:
         movie_map = await self._insert_movies(movies, cert_map)
 
         # 5. Insert associations
-        await self._seed_associations(movie_map, genre_map, star_map, director_map)
+        await self._seed_associations(
+            movie_map, genre_map, star_map, director_map
+        )
 
         await self.db.commit()
         log.info("✅ Database seeding completed successfully.")
 
 
 async def main() -> None:
+    """Main entry point for database seeding.
+
+    This function:
+    - Sets up logging
+    - Loads settings from the environment
+    - Ensures all JSON seed files exist
+    - Seeds the database with:
+        - User groups (USER, MODERATOR, ADMIN)
+        - Certifications
+        - Genres
+        - Stars
+        - Directors
+        - Movies
+        - Movie associations (genres, stars, directors)
+
+    If any exception occurs during seeding, it is caught and re-raised.
+    """
     setup_logging()
     settings = get_settings()
 

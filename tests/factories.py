@@ -1,9 +1,8 @@
 from decimal import Decimal
 
 import factory
-
+from movies.models import Certification, Genre, Movie, MovieComment
 from users.models import User, UserProfile
-from movies.models import Genre, Certification, Movie, MovieComment
 from users.utils import hash_password
 
 

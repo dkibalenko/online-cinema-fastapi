@@ -377,7 +377,7 @@ class MovieReactionService:
         self,
         repo: MovieRepository,
         cache: CacheService,
-        cache_invalidator: MovieCacheInvalidationService
+        cache_invalidator: MovieCacheInvalidationService,
     ):
         self.repo = repo
         self.cache = cache
@@ -876,7 +876,7 @@ class MovieCommentService:
         if not movie:
             log.warning(f"Movie not found for comment | movie_id={movie_id}")
             raise HTTPException(
-                status_code=status.HTTP_404,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Movie with ID {movie_id} not found.",
             )
 

@@ -3,7 +3,6 @@ from celery.schedules import crontab
 
 from config import get_settings
 
-
 settings = get_settings()
 
 
@@ -15,7 +14,7 @@ app = Celery(
         "cinema_celery.tasks.email_tasks",
         "cinema_celery.tasks.cleanup_tasks",
         "cinema_celery.tasks.comment_tasks",
-    ]
+    ],
 )
 
 # Beat schedule: run cleanup once per week (Sunday midnight)

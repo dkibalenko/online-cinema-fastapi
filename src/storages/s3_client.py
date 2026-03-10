@@ -1,12 +1,10 @@
-from typing import Union
-
 import aioboto3
 from botocore.exceptions import (
     BotoCoreError,
-    NoCredentialsError,
-    HTTPClientError,
+    ClientError,
     ConnectionError,
-    ClientError
+    HTTPClientError,
+    NoCredentialsError,
 )
 
 from storages.exceptions import S3ConnectionError, S3FileUploadError
@@ -14,16 +12,16 @@ from storages.interfaces import S3StorageInterface
 
 
 class S3StorageClient(S3StorageInterface):
-
     def __init__(
         self,
         endpoint_url: str,
         access_key: str,
         secret_key: str,
-        bucket_name: str
+        bucket_name: str,
     ):
-        """
-        Initialize the asynchronous S3 Storage Client using an aioboto3 Session.
+        """Initialize the asynchronous S3 Storage Client.
+
+        This client uses an aioboto3 Session.
 
         Args:
             endpoint_url (str): S3-compatible storage endpoint.
@@ -42,12 +40,9 @@ class S3StorageClient(S3StorageInterface):
         )
 
     async def upload_file(
-        self,
-        file_name: str,
-        file_data: Union[bytes, bytearray]
+        self, file_name: str, file_data: bytes | bytearray
     ) -> None:
-        """
-        Asynchronously upload a file to the S3-compatible storage.
+        """Asynchronously upload a file to the S3-compatible storage.
 
         Args:
             file_name (str): The name of the file to be stored.
@@ -55,7 +50,7 @@ class S3StorageClient(S3StorageInterface):
 
         Raises:
             S3ConnectionError: If there is a connection error with S3.
-            S3FileUploadError: If the file upload fails due to a BotoCore error.
+            S3FileUploadError: If the file upload fails due to BotoCore error.
         """
         try:
             async with self._session.client(
@@ -65,7 +60,7 @@ class S3StorageClient(S3StorageInterface):
                     Bucket=self._bucket_name,
                     Key=file_name,
                     Body=file_data,
-                    ContentType="image/jpeg"
+                    ContentType="image/jpeg",
                 )
         except (ConnectionError, HTTPClientError, NoCredentialsError) as e:
             raise S3ConnectionError(
@@ -77,8 +72,7 @@ class S3StorageClient(S3StorageInterface):
             ) from e
 
     async def get_file_url(self, file_name: str) -> str:
-        """
-        Generate a public URL for a file stored in the S3-compatible storage.
+        """Generate public URL for a file stored in the S3-compatible storage.
 
         Args:
             file_name (str): The name of the file stored in the bucket.
@@ -89,8 +83,7 @@ class S3StorageClient(S3StorageInterface):
         return f"{self._endpoint_url}/{self._bucket_name}/{file_name}"
 
     async def delete_file(self, file_name: str) -> None:
-        """
-        Delete a file from the S3-compatible storage.
+        """Delete a file from the S3-compatible storage.
 
         Args:
             file_name (str): The key of the file to delete.
@@ -104,8 +97,7 @@ class S3StorageClient(S3StorageInterface):
                 "s3", endpoint_url=self._endpoint_url
             ) as client:
                 await client.delete_object(
-                    Bucket=self._bucket_name,
-                    Key=file_name
+                    Bucket=self._bucket_name, Key=file_name
                 )
 
         except (ConnectionError, HTTPClientError, NoCredentialsError) as e:

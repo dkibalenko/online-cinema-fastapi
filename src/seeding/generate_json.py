@@ -1,12 +1,11 @@
-import os
+import asyncio
 import json
 import random
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import aiofiles
 import httpx
-import asyncio
 
 from logger_config import get_logger
 
@@ -16,16 +15,41 @@ CERTIFICATIONS_LIST = ["G", "PG", "PG-13", "R", "NC-17"]
 PRICES = [4.99, 9.99, 14.99, 19.99]
 MOVIES_COUNT = 100
 GENRES = [
-    "Action", "Adventure", "Animation", "Biography", "Comedy", "Crime",
-    "Documentary", "Drama", "Family", "Fantasy", "Film-Noir", "History",
-    "Horror", "Music", "Musical", "Mystery", "Romance", "Science Fiction",
-    "Sport", "Thriller", "War", "Western"
+    "Action",
+    "Adventure",
+    "Animation",
+    "Biography",
+    "Comedy",
+    "Crime",
+    "Documentary",
+    "Drama",
+    "Family",
+    "Fantasy",
+    "Film-Noir",
+    "History",
+    "Horror",
+    "Music",
+    "Musical",
+    "Mystery",
+    "Romance",
+    "Science Fiction",
+    "Sport",
+    "Thriller",
+    "War",
+    "Western",
 ]
 
 FALLBACK_NAMES = [
-    "John Smith", "Jane Doe", "Alice Johnson", "Bob Williams",
-    "Charlie Brown", "Diana Prince", "Bruce Wayne", "Clark Kent",
-    "Peter Parker", "Natasha Romanoff"
+    "John Smith",
+    "Jane Doe",
+    "Alice Johnson",
+    "Bob Williams",
+    "Charlie Brown",
+    "Diana Prince",
+    "Bruce Wayne",
+    "Clark Kent",
+    "Peter Parker",
+    "Natasha Romanoff",
 ]
 
 
@@ -36,7 +60,7 @@ class JsonDataGenerator:
         movie_json: str,
         genres_json: str,
         stars_json: str,
-        dirs_json: str
+        dirs_json: str,
     ):
         self._certs_json = certs_json
         self._movie_json = movie_json
@@ -57,7 +81,9 @@ class JsonDataGenerator:
         Path(self._genres_json).parent.mkdir(parents=True, exist_ok=True)
         data = [{"name": name} for name in GENRES]
 
-        async with aiofiles.open(self._genres_json, "w", encoding="utf-8") as f:
+        async with aiofiles.open(
+            self._genres_json, "w", encoding="utf-8"
+        ) as f:
             await f.write(json.dumps(data, indent=2, ensure_ascii=False))
 
         log.info("Generated genres.json with %d items.", len(data))
@@ -65,11 +91,17 @@ class JsonDataGenerator:
     async def _generate_movies(self) -> None:
         Path(self._movie_json).parent.mkdir(parents=True, exist_ok=True)
 
-        movies: List[Dict[str, Any]] = []
+        movies: list[dict[str, Any]] = []
         for _ in range(MOVIES_COUNT):
             name = f"Fake Movie {random.randint(1000, 9999)}"
-            meta_score = random.randint(30, 99) if random.random() > 0.2 else None
-            gross_value = random.randint(1_000_000, 500_000_000) if random.random() > 0.2 else None
+            meta_score = (
+                random.randint(30, 99) if random.random() > 0.2 else None
+            )
+            gross_value = (
+                random.randint(1_000_000, 500_000_000)
+                if random.random() > 0.2
+                else None
+            )
 
             movie = {
                 "name": name,
@@ -90,10 +122,12 @@ class JsonDataGenerator:
 
         log.info("Generated movies.json with %d items.", len(movies))
 
-    async def _generate_names(self, file_path: str, label: str, count: int = 50) -> None:
+    async def _generate_names(
+        self, file_path: str, label: str, count: int = 50
+    ) -> None:
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-        names: List[Dict[str, str]] = []
+        names: list[dict[str, str]] = []
         max_attempts = count * 3
         attempts = 0
 
@@ -106,11 +140,15 @@ class JsonDataGenerator:
                     data = resp.json()
                     results = data.get("results") or []
                     if not results:
-                        log.warning("randomuser.me returned empty results, retrying...")
+                        log.warning(
+                            "randomuser.me returned empty results, retrying..."
+                        )
                         await asyncio.sleep(0.2)
                         continue
                     user = results[0]
-                    full_name = f"{user['name']['first']} {user['name']['last']}"
+                    full_name = (
+                        f"{user['name']['first']} {user['name']['last']}"
+                    )
                     names.append({"name": full_name})
                     await asyncio.sleep(0.1)
                 except httpx.RequestError as e:
@@ -119,7 +157,10 @@ class JsonDataGenerator:
 
         if len(names) < count:
             log.warning(
-                "Could not fetch enough names from API (%d/%d). Using fallback names.",
+                (
+                    "Could not fetch enough names from API (%d/%d)."
+                    "Using fallback names."
+                ),
                 len(names),
                 count,
             )
@@ -132,19 +173,30 @@ class JsonDataGenerator:
         log.info("Generated %s.json with %d items.", label, len(names))
 
     async def ensure_json_files_exist(self, count: int = 50) -> None:
-        if not os.path.exists(self._certs_json):
+        """Ensures all JSON seed files exist, generating them if they don't.
+
+        This method is idempotent and can be safely called multiple times.
+
+        Args:
+            count (int, optional): The number of names to generate for
+                stars and directors. Defaults to 50.
+
+        Returns:
+            None
+        """
+        if not Path(self._certs_json).exists():
             await self._generate_certifications()
 
-        if not os.path.exists(self._genres_json):
+        if not Path(self._genres_json).exists():
             await self._generate_genres()
 
-        if not os.path.exists(self._movie_json):
+        if not Path(self._movie_json).exists():
             await self._generate_movies()
 
-        if not os.path.exists(self._stars_json):
+        if not Path(self._stars_json).exists():
             await self._generate_names(self._stars_json, "stars", count)
 
-        if not os.path.exists(self._dirs_json):
+        if not Path(self._dirs_json).exists():
             await self._generate_names(self._dirs_json, "directors", count)
 
         log.info("✅ All JSON seed files are ready.")

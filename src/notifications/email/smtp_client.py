@@ -17,7 +17,7 @@ class SMTPClient:
         username: str,
         password: str,
         use_tls: bool,
-        from_email: str
+        from_email: str,
     ):
         self.hostname = hostname  # SMTP_SERVER
         self.port = port  # SMTP_PORT
@@ -42,9 +42,9 @@ class SMTPClient:
         message.attach(MIMEText(html, "html"))
 
         log.info(
-                f"Connecting to SMTP {self.hostname}:{self.port} "
-                f"(use_tls={self.use_tls})"
-            )
+            f"Connecting to SMTP {self.hostname}:{self.port} "
+            f"(use_tls={self.use_tls})"
+        )
 
         smtp = aiosmtplib.SMTP(
             hostname=self.hostname,  # SMTP_SERVER

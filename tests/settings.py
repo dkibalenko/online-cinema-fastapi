@@ -1,5 +1,6 @@
-from pydantic import SecretStr
 from config import BaseAppSettings
+from pydantic import SecretStr
+
 
 class TestSettings(BaseAppSettings):
     TESTING: bool = True
