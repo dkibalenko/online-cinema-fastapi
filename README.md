@@ -1,12 +1,122 @@
 # Online Cinema
 
 This project is an actively developed, production‑grade RESTful API built with FastAPI, SQLAlchemy 2.0, Celery, Redis, PostgreSQL, Docker, MinIO, MailHog and many other tools.  
-It already includes a complete authentication system, user management, movie catalog with genres/stars/directors, likes, ratings, email workflows, and a fully containerized multi‑service architecture.
+It already includes a complete pre-commit hook, CI pipeline, authentication system, user management, movie catalog with genres/stars/directors, likes, ratings, email workflows, and a fully containerized multi‑service architecture.
 
-I continue expanding the system daily — CI/CD, deployment, and automated test coverage are next on the roadmap. The goal is to **demonstrate real backend engineering practices**, not just CRUD endpoints.
+I continue expanding the system daily — CD, deployment, and automated test coverage are next on the roadmap. The goal is to **demonstrate real backend engineering practices**, not just CRUD endpoints.
 
 An online cinema is a digital platform that allows users to select, watch, and purchase access to movies and other video materials via the internet.
 
+## ⭐ Build & Quality Status
+
+[![CI](https://github.com/dkibalenko/online-cinema-fastapi/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/dkibalenko/online-cinema-fastapi/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/dkibalenko/online-cinema-fastapi/branch/dev/graph/badge.svg)](https://codecov.io/gh/dkibalenko/online-cinema-fastapi)
+
+This project includes a fully automated Continuous Integration (CI) pipeline powered by GitHub Actions:
+
+- **Ruff** for linting and formatting checks  
+- **mypy** for static type checking  
+- **pytest** for automated tests  
+- **pytest-cov** for coverage reporting  
+- **Codecov** for coverage tracking and reporting  
+
+Every **push** and **pull request** to the `dev` branch triggers the pipeline.
+
+## ⭐ Continuous Integration (CI)
+The goal is to guarantee that every change pushed to the repository is:
+- correctly formatted
+- lint‑clean
+- type‑safe
+- fully tested
+- reproducible across environments
+
+---
+
+### What the CI Pipeline Checks
+#### 1. Code Formatting & Linting (Ruff)
+The pipeline enforces a consistent code style using Ruff, which performs:
+- static linting (ruff check)
+- formatting validation (ruff format --check)
+- import sorting
+- pyupgrade rules
+- docstring conventions
+- bugbear checks
+- simplification rules
+
+This ensures the codebase remains clean, modern, and readable.
+
+#### 2. Static Type Checking (mypy)
+The CI runs:
+```shell
+mypy --config-file=mypy.ini src/
+```
+This enforces:
+- strict type checking
+- detection of incorrect or missing types
+- validation of Pydantic models
+- early catching of interface mismatches
+
+#### 3. Automated Testing (pytest)
+All tests under tests/ are executed with:
+```shell
+pytest --cov=src --cov-report=xml --cov-report=term
+```
+This provides:
+- full test execution
+- coverage measurement
+- XML coverage report for CI artifacts
+- terminal summary for quick inspection
+
+The CI environment loads a dedicated `.env.ci` file to supply safe test‑only environment variables.
+
+#### 4. Coverage Report Upload
+After tests complete, the workflow uploads `coverage.xml` as a CI artifact.
+This allows you to:
+- inspect coverage in GitHub
+- integrate with external tools (Codecov, SonarCloud, etc.)
+- track coverage changes over time
+
+---
+
+### Environment Configuration for CI
+The CI pipeline uses a dedicated `.env.ci` file that provides minimal, safe defaults for:
+- SMTP configuration
+- Redis cache
+- Celery broker/backend
+- S3 storage
+- JWT secrets
+
+This ensures that tests run consistently without requiring real external services.
+
+The workflow copies `.env.ci` into place before running any checks:
+```yml
+- name: Load CI environment variables
+  run: cp .env.ci .env
+```
+
+### Dependency Management (Poetry)
+The CI uses Poetry with in‑project virtual environments:
+- caches the `.venv` directory for faster builds
+- installs both main and development dependencies
+- ensures reproducible environments via poetry.lock
+
+Installation step:
+```yml
+poetry install --no-interaction --no-root --with dev
+```
+This guarantees that tools like pytest, pytest‑cov, mypy, ruff, and pre‑commit are available during CI.
+
+---
+
+### Summary
+Your CI pipeline ensures that every commit meets the same strict standards you enforce locally:
+- consistent formatting
+- clean linting
+- strict typing
+- reliable tests
+- reproducible builds
+
+This creates a stable foundation for development and prevents regressions before they reach the main codebase.
 
 ## ⭐ Authentication System
 The authentication subsystem provides a complete, secure, and production‑ready identity flow for the Online Cinema platform. It includes user onboarding, JWT‑based authentication, role‑based access control, and asynchronous email notifications.
