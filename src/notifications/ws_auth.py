@@ -1,21 +1,20 @@
 from fastapi import WebSocket
 
+from auth.interfaces import JWTAuthManagerInterface
+from auth.token_manager import JWTAuthManager
 from config import get_settings
 from database import get_db_contextmanager
 from logger_config import get_logger
-from auth.interfaces import JWTAuthManagerInterface
-from auth.token_manager import JWTAuthManager
 from users.models import User
 from users.repository import UserRepository
-
 
 log = get_logger()
 
 
 def get_jwt_manager() -> JWTAuthManagerInterface:
-    """
-    Retrieves an instance of the `JWTAuthManager` class based on
-    the application settings.
+    """Retrieves an instance of the `JWTAuthManager` class.
+
+    The manager is created based on the application settings.
 
     Returns:
         `JWTAuthManager`: An instance of the `JWTAuthManager` class.
@@ -24,13 +23,12 @@ def get_jwt_manager() -> JWTAuthManagerInterface:
     return JWTAuthManager(
         secret_key_access=settings.JWT_SECRET_KEY_ACCESS.get_secret_value(),
         secret_key_refresh=settings.JWT_SECRET_KEY_REFRESH.get_secret_value(),
-        algorithm=settings.JWT_SIGNING_ALGORITHM
+        algorithm=settings.JWT_SIGNING_ALGORITHM,
     )
 
 
 async def get_user_from_ws(websocket: WebSocket) -> User:
-    """
-    Retrieves a user from the given WebSocket connection.
+    """Retrieves a user from the given WebSocket connection.
 
     The user is identified by the "token" query parameter,
     which is used to authenticate the user.
@@ -52,19 +50,19 @@ async def get_user_from_ws(websocket: WebSocket) -> User:
 
     if not token:
         await websocket.close(code=1008)
-        return
+        return None
 
     try:
         payload = jwt_manager.decode_access_token(token)
     except Exception as e:
         log.warning(f"Invalid WS token: {token[:10]}... - {str(e)}")
         await websocket.close(code=1008)
-        return
+        return None
 
     user_id = payload.get("user_id")
     if not user_id:
         await websocket.close(code=1008)
-        return
+        return None
 
     async with get_db_contextmanager() as session:
         repo = UserRepository(session)
@@ -72,6 +70,6 @@ async def get_user_from_ws(websocket: WebSocket) -> User:
 
     if not user:
         await websocket.close(code=1008)
-        return
+        return None
 
     return user
