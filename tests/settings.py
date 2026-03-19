@@ -36,4 +36,12 @@ class TestSettings(BaseAppSettings):
 
 
 def get_test_settings():
+    """Retrieves an instance of the TestSettings class.
+
+    The TestSettings class is a subclass of BaseAppSettings, containing
+    the application settings used for testing.
+
+    Returns:
+        TestSettings: An instance of the TestSettings class.
+    """
     return TestSettings()

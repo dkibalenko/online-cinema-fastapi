@@ -1,11 +1,12 @@
 import pytest
-from auth.models import ActivationToken, RefreshToken
-from auth.token_manager import JWTAuthManager
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from users.models import User
 
+from auth.models import ActivationToken, RefreshToken, PasswordResetToken
+from auth.token_manager import JWTAuthManager
+from tests.conftest import test_engine
+from users.models import User
 from tests.settings import get_test_settings
 
 
@@ -209,3 +210,244 @@ async def test_refresh_token(
     assert "access_token" in data
     # depending on whether I later enable rotation
     assert "refresh_token" not in data or data["refresh_token"]
+
+
+@pytest.mark.asyncio
+async def test_resend_activation(
+    client: AsyncClient,
+    test_engine,
+    default_user_group
+):
+    """
+    Tests the resend activation token endpoint.
+
+    Ensures that an inactive user receives a new activation token
+    when the resend activation token endpoint is called.
+
+    Parameters:
+        client (AsyncClient): The test client
+        test_engine (Engine): The test database engine
+        default_user_group (UserGroup): The default user group
+
+    Returns:
+        None
+    """
+    async_session = async_sessionmaker(
+        test_engine,
+        expire_on_commit=False,
+        class_=AsyncSession
+    )
+
+    # Create inactive user
+    async with async_session() as session:
+        user = User(
+            email="resend@example.com",
+            _hashed_password="hashed",
+            is_active=False,
+            group_id=default_user_group.id,
+        )
+        session.add(user)
+        await session.commit()
+
+    response = await client.post(
+        "/api/v1/cinema/auth/activate/resend",
+        json={"email": "resend@example.com"},
+    )
+
+    assert response.status_code == 200
+    assert "message" in response.json()
+
+
+@pytest.mark.asyncio
+async def test_logout(
+    client: AsyncClient,
+    test_engine,
+    default_user_group
+):
+    """
+    Tests the logout endpoint.
+
+    Creates an active user and a refresh token, calls the logout endpoint
+    with the correct refresh token, and asserts that the user is logged out
+    successfully and the refresh token is deleted.
+
+    Parameters:
+        client (AsyncClient): The test client
+        test_engine (Engine): The test database engine
+        default_user_group (UserGroup): The default user group
+
+    Returns:
+        None
+    """
+    # Create user + refresh token
+    async_session = async_sessionmaker(
+        test_engine, expire_on_commit=False, class_=AsyncSession
+    )
+    settings = get_test_settings()
+    jwt_manager = JWTAuthManager(
+        secret_key_access=settings.JWT_SECRET_KEY_ACCESS.get_secret_value(),
+        secret_key_refresh=settings.JWT_SECRET_KEY_REFRESH.get_secret_value(),
+        algorithm=settings.JWT_SIGNING_ALGORITHM,
+    )
+
+    async with async_session() as session:
+        user = User.create(
+            email="logout@example.com",
+            raw_password="Password123!",
+            group_id=default_user_group.id,
+        )
+        user.is_active = True
+        session.add(user)
+        await session.flush()
+
+        refresh_jwt = jwt_manager.create_refresh_token({"user_id": user.id})
+        session.add(RefreshToken.create(
+            user_id=user.id, days_valid=7, token=refresh_jwt)
+        )
+        await session.commit()
+
+    response = await client.post(
+        "/api/v1/cinema/auth/logout",
+        json={"refresh_token": refresh_jwt},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Logged out successfully."
+
+
+@pytest.mark.asyncio
+async def test_password_reset_request(
+    client: AsyncClient, test_engine, default_user_group
+):
+    """
+    Tests the password reset request endpoint.
+
+    Creates an active user, calls the password reset request endpoint with the
+    correct email, and asserts that the response contains a success message.
+
+    Parameters:
+        client (AsyncClient): The test client
+        test_engine (Engine): The test database engine
+        default_user_group (UserGroup): The default user group
+
+    Returns:
+        None
+    """
+    async_session = async_sessionmaker(
+        test_engine, expire_on_commit=False, class_=AsyncSession
+    )
+
+    async with async_session() as session:
+        user = User.create(
+            email="reset@example.com",
+            raw_password="Password123!",
+            group_id=default_user_group.id,
+        )
+        user.is_active = True
+        session.add(user)
+        await session.commit()
+
+    response = await client.post(
+        "/api/v1/cinema/auth/password-reset/request",
+        json={"email": "reset@example.com"},
+    )
+
+    assert response.status_code == 200
+    assert "message" in response.json()
+
+
+@pytest.mark.asyncio
+async def test_password_reset_complete(
+    client: AsyncClient, test_engine, default_user_group
+):
+    """
+    Tests the password reset complete endpoint.
+
+    Creates an active user and a password reset token, calls the password reset
+    complete endpoint with the correct token and password, and asserts that the
+    response contains a success message.
+
+    Parameters:
+        client (AsyncClient): The test client
+        test_engine (Engine): The test database engine
+        default_user_group (UserGroup): The default user group
+
+    Returns:
+        None
+    """
+    async_session = async_sessionmaker(
+        test_engine, expire_on_commit=False, class_=AsyncSession
+    )
+
+    async with async_session() as session:
+        user = User.create(
+            email="complete@example.com",
+            raw_password="Password123!",
+            group_id=default_user_group.id,
+        )
+        user.is_active = True
+        session.add(user)
+        await session.flush()
+
+        token = PasswordResetToken(user_id=user.id)
+        session.add(token)
+        await session.commit()
+
+    response = await client.post(
+        "/api/v1/cinema/auth/password-reset/complete",
+        json={"token": token.token, "password": "NewPass123!"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Password has been reset successfully."
+
+
+@pytest.mark.asyncio
+async def test_password_change(
+    client: AsyncClient, test_engine, default_user_group
+):
+    """
+    Tests the password change endpoint.
+
+    Creates an active user, calls the password change endpoint with the
+    correct old password and new password, and asserts that the response
+    contains a success message.
+
+    Parameters:
+        client (AsyncClient): The test client
+        test_engine (Engine): The test database engine
+        default_user_group (UserGroup): The default user group
+
+    Returns:
+        None
+    """
+    async_session = async_sessionmaker(
+        test_engine, expire_on_commit=False, class_=AsyncSession
+    )
+    settings = get_test_settings()
+    jwt_manager = JWTAuthManager(
+        secret_key_access=settings.JWT_SECRET_KEY_ACCESS.get_secret_value(),
+        secret_key_refresh=settings.JWT_SECRET_KEY_REFRESH.get_secret_value(),
+        algorithm=settings.JWT_SIGNING_ALGORITHM,
+    )
+
+    async with async_session() as session:
+        user = User.create(
+            email="change@example.com",
+            raw_password="OldPass123!",
+            group_id=default_user_group.id,
+        )
+        user.is_active = True
+        session.add(user)
+        await session.commit()
+
+    access_token = jwt_manager.create_access_token({"user_id": user.id})
+
+    response = await client.post(
+        "/api/v1/cinema/auth/password-change",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"old_password": "OldPass123!", "new_password": "NewPass456!"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Password changed successfully."

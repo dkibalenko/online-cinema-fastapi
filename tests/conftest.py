@@ -263,3 +263,14 @@ def mock_celery_tasks(monkeypatch):
         fake_delay,
         raising=False,
     )
+
+    # Password reset
+    monkeypatch.setattr(
+        "auth.service.send_password_reset_email.delay",
+        fake_delay
+    )
+
+    monkeypatch.setattr(
+        "auth.service.send_password_reset_complete_email.delay",
+        fake_delay
+    )

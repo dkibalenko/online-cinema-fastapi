@@ -92,12 +92,12 @@ class AuthService:
                 group_id=group.id,
             )
             self.auth.add(user)
-            await self.auth.flush()
+            await self.auth.flush()  # first DB write (raises SQLAlchemyError)
 
             token = ActivationToken(user_id=user.id)
             self.auth.add(token)
 
-            await self.auth.commit()
+            await self.auth.commit()  # second DB write
             # here, token is set right away before flush() & is available, so,
             # no need to query again. Also, refresh(user) need not be called,
             # since atts are valid after commit (expire_on_commit=False)
