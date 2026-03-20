@@ -1,9 +1,12 @@
 from decimal import Decimal
 
+from pytz import UTC
+
 import factory
 from movies.models import Certification, Genre, Movie, MovieComment
 from users.models import User, UserProfile
 from users.utils import hash_password
+from auth.models import RefreshToken, PasswordResetToken
 
 
 class UserFactory(factory.alchemy.SQLAlchemyModelFactory):
@@ -16,6 +19,44 @@ class UserFactory(factory.alchemy.SQLAlchemyModelFactory):
     _hashed_password = factory.LazyFunction(
         lambda: hash_password("password123")
     )
+
+
+class FakeRefreshTokenExpired(factory.alchemy.SQLAlchemyModelFactory):
+    class Meta:
+        model = RefreshToken
+        sqlalchemy_session_persistence = "flush"
+
+    user_id = 1
+    expires_at = factory.Faker("past_datetime", tzinfo=UTC)
+
+
+class FakeRefreshToken(factory.alchemy.SQLAlchemyModelFactory):
+    class Meta:
+        model = RefreshToken
+        sqlalchemy_session_persistence = "flush"
+
+    user_id = 1
+    expires_at = factory.Faker("future_datetime", tzinfo=UTC)
+
+
+class FakePasswordResetTokenExpired(factory.alchemy.SQLAlchemyModelFactory):
+    class Meta:
+        model = PasswordResetToken
+        sqlalchemy_session_persistence = "flush"
+
+    user_id = 1
+    expires_at = factory.Faker("past_datetime", tzinfo=UTC)
+    token = "dummy-token"
+
+
+class FakePasswordResetToken(factory.alchemy.SQLAlchemyModelFactory):
+    class Meta:
+        model = PasswordResetToken
+        sqlalchemy_session_persistence = "flush"
+
+    user_id = 1
+    expires_at = factory.Faker("future_datetime", tzinfo=UTC)
+    token = "dummy-token"
 
 
 class GenreFactory(factory.alchemy.SQLAlchemyModelFactory):

@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from auth.models import ActivationToken, RefreshToken, PasswordResetToken
 from auth.token_manager import JWTAuthManager
-from tests.conftest import test_engine
 from users.models import User
 from tests.settings import get_test_settings
 
