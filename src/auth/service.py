@@ -204,6 +204,7 @@ class AuthService:
         """
         log.info(f"Resend activation attempt for {email_data.email}")
 
+        user = None
         try:
             async with self.auth.db.begin():
                 user = await self.auth.get_user_by_email(email_data.email)
@@ -233,7 +234,7 @@ class AuthService:
         except SQLAlchemyError as error:
             log.error(
                 f"Error during resend activation token creation for "
-                f"{user.email}: {error}"
+                f"{email_data.email}: {error}"
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
