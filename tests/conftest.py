@@ -1,16 +1,23 @@
 import pytest
 import pytest_asyncio
-from config import get_settings
-from database import get_db
 from httpx import ASGITransport, AsyncClient
-from main import create_app
 from moto import mock_aws
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from dotenv import load_dotenv
+from pathlib import Path
+
+from config import get_settings
+from main import create_app
+from database import get_db
 from users.enums import UserGroupEnum
 from users.models import UserGroup
 
 from tests.settings import get_test_settings
 from tests.utils.db import create_test_engine, drop_test_engine
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env.test")
 
 
 @pytest.fixture(scope="session")

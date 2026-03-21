@@ -5,11 +5,13 @@ from pathlib import Path
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+
 
 class BaseAppSettings(BaseSettings):
     # Pydantic load .env automatically
     model_config = {
-        "env_file": ".env",
+        "env_file": BASE_DIR / ".env",
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }
