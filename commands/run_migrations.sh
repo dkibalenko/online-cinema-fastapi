@@ -14,6 +14,15 @@ ALEMBIC_TABLE_EXISTS=$(psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRE
 if [ "$ALEMBIC_TABLE_EXISTS" = "alembic_version" ]; then
     echo "Alembic version table exists. Applying pending migrations..."
     alembic -c "$ALEMBIC_CONFIG" upgrade head
+
+    # if [ "$FORCE_SEED" = "true" ]; then
+    #     echo "FORCE_SEED enabled — running database seeder..."
+    #     python -m seeding.populate_db
+    #     echo "Database seeding completed."
+    # else
+    #     echo "FORCE_SEED not enabled — skipping seeding."
+    # fi
+
 else
     echo "Alembic version table NOT found. Fresh database detected."
 

@@ -7,6 +7,9 @@ import aiofiles
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# registered in the ORM registry to resolve relationship("ActivationToken")
+# when SQLAlchemy configures the User mapper
+from auth.models import ActivationToken  # noqa: F401
 from config import get_settings
 from database import get_db_contextmanager
 from logger_config import get_logger, setup_logging

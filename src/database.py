@@ -38,6 +38,16 @@ POSTGRESQL_DATABASE_URL = (
     f"{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:"
     f"{settings.POSTGRES_DB_PORT}/{settings.POSTGRES_DB}"
 )
+# production
+# async_engine = create_async_engine(
+#     POSTGRESQL_DATABASE_URL,
+#     echo=False,
+#     pool_size=10,
+#     max_overflow=20,
+#     pool_timeout=30,
+#     pool_recycle=1800,  # recycle every 30 min
+#     pool_pre_ping=True, # avoid stale connections
+# )
 
 async_engine = create_async_engine(POSTGRESQL_DATABASE_URL, echo=True)
 
