@@ -33,4 +33,4 @@ repos:
         name: pytest
         entry: poetry run pytest -q
         language: system
-        pass_filenames: false
+        pass_filenames: true
