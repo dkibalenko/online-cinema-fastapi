@@ -33,6 +33,21 @@ services:
     networks:
       - fastapi_network
 
+  nginx:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.nginx
+    container_name: cinema-nginx
+    ports:
+      - "8080:80"  # http://localhost:8080
+      - "8443:443"  # https://localhost:8443
+      # - "80:80"
+      # - "443:443"  # make sure SSL server block is reachable
+    depends_on:
+      - web
+    networks:
+      - fastapi_network
+
   web:
     restart: always
     build:
