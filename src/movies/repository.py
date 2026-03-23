@@ -469,9 +469,15 @@ class MovieRepository:
     async def get_comment_by_id(self, comment_id: int) -> MovieComment | None:
         """Retrieve a comment by its ID.
 
+        Fetches the comment along with the user who created it.
+
         :param comment_id: The ID of the comment to retrieve.
         :return: The comment object if found, None otherwise.
         """
-        stmt = select(MovieComment).where(MovieComment.id == comment_id)
+        stmt = (
+            select(MovieComment)
+            .where(MovieComment.id == comment_id)
+            .options(selectinload(MovieComment.user))
+        )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
