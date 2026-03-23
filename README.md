@@ -124,6 +124,21 @@ This creates a stable foundation for development and prevents regressions before
 The system follows a **modular**, **service‑oriented architecture** designed for clarity, scalability, and real‑world backend workflows.
 Each component is isolated, typed, and tested, with clear boundaries between domains.
 
+```
+Client (HTTPS / WSS)
+        ↓
+     Nginx
+  - SSL termination
+  - Reverse proxy
+  - WebSocket upgrade
+  - Caching
+  - Static files
+        ↓
+FastAPI (internal HTTP)
+        ↓
+PostgreSQL / Redis / Celery / MinIO
+```
+
 ### Core architectural principles
 - **Domain‑oriented design** — authentication, users, movies, notifications, storage, and background tasks are separated into clean domains.
 - **Async‑first stack** — FastAPI, async SQLAlchemy, async Redis, async S3 clients, async email sending.
@@ -140,9 +155,18 @@ Each component is isolated, typed, and tested, with clear boundaries between dom
 - **MinIO (S3‑compatible)** — object storage for images and media.
 - **MailHog** — local SMTP server for email testing.
 - **Docker Compose** — orchestrates all services for local development.
+- **Nginx reverse proxy** — acts as the public gateway.
 
 ### Features
 This project already includes a rich set of real‑world backend features:
+
+#### Nginx Reverse Proxy
+- SSL/TLS termination
+- Reverse proxy routing
+- WebSocket upgrade support
+- Static file serving
+- HTTP request caching
+
 #### User & Auth
 - JWT‑based authentication (access + refresh tokens)
 - Registration, login, logout
@@ -218,6 +242,120 @@ This project already includes a rich set of real‑world backend features:
 #### CI/CD
 - **GitHub Actions** — CI pipeline (linting, typing, tests, coverage)
 - **Codecov** — coverage analytics and PR annotations
+
+## ⭐ Nginx Reverse Proxy & SSL Termination
+This project includes a full Nginx reverse proxy layer that sits in front of the FastAPI backend.
+Nginx is responsible for handling HTTPS, routing, caching, and WebSocket upgrades, while FastAPI runs as an internal service inside the Docker network.
+
+### Why Nginx Was Added
+Nginx acts as the public entrypoint to the application and provides several production‑grade features:
+- SSL/TLS termination (HTTPS support)
+- Reverse proxy to the FastAPI backend
+- WebSocket upgrade support for real‑time notifications
+- Static file serving
+- Request caching for GET endpoints
+- HTTP → HTTPS redirect
+- Isolation of FastAPI (in production)
+- Clean, stable URL structure
+
+This architecture mirrors real‑world deployments where application servers (FastAPI/Uvicorn) are never exposed directly to the internet.
+
+![reverse_proxy_process](reverse_proxy_process.png)
+
+---
+
+### SSL/TLS Termination
+Nginx handles all HTTPS traffic using a certificate/key pair stored in:
+```
+nginx/certs/selfsigned.crt
+nginx/certs/selfsigned.key
+```
+In development, the project uses a self‑signed certificate, which is expected to trigger a browser warning.
+In production, this can be replaced with a real certificate (e.g., via Let’s Encrypt).
+
+#### Flow:
+```
+Client (HTTPS) → Nginx → FastAPI (HTTP, internal only)
+```
+FastAPI never deals with TLS — Nginx decrypts incoming traffic and forwards plain HTTP to the backend.
+
+---
+
+### Reverse Proxy Routing
+Nginx forwards all API traffic to the FastAPI container:
+```
+https://localhost:8443/api/v1/cinema/...  →  web:8000
+```
+The upstream block:
+```nginx
+upstream fastapi_backend {
+    server web:8000;
+}
+```
+ensures that Nginx communicates with FastAPI inside the Docker network, not through exposed host ports.
+
+---
+
+### WebSocket Support
+Real‑time comment notifications use WebSockets.
+Nginx is configured to support WebSocket upgrades:
+```nginx
+proxy_http_version 1.1;
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection "upgrade";
+proxy_buffering off;
+```
+WebSocket endpoint:
+```
+wss://localhost:8443/api/v1/cinema/ws/comments?token=JWT
+```
+This works seamlessly over HTTPS.
+
+![WebSocket Flow](websocket-handshake-flow.png)
+
+---
+
+### Static File Serving
+Nginx serves static files directly:
+```nginx
+location /static/ {
+    alias /app/static/;
+}
+```
+This offloads static content from FastAPI and improves performance.
+
+---
+
+### Request Caching
+Nginx caches GET responses for 10 seconds:
+```nginx
+proxy_cache fastapi_cache;
+proxy_cache_valid 200 10s;
+```
+This reduces load on the backend and speeds up repeated requests.
+
+---
+
+### How to Access the Application
+#### Swagger UI
+```
+https://localhost:8443/docs
+```
+
+#### API
+```
+https://localhost:8443/api/v1/cinema/...
+```
+
+#### WebSockets
+```
+wss://localhost:8443/api/v1/cinema/ws/comments?token=JWT
+```
+
+#### HTTP (redirects to HTTPS)
+```
+http://localhost:8080
+```
 
 ## ⭐ Authentication System
 The authentication subsystem provides a complete, secure, and production‑ready identity flow for the Online Cinema platform. It includes user onboarding, JWT‑based authentication, role‑based access control, and asynchronous email notifications.
