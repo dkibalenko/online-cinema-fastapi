@@ -7,9 +7,10 @@ from movies.models import Certification, Genre, Movie, MovieComment
 from users.models import User, UserProfile
 from users.utils import hash_password
 from auth.models import RefreshToken, PasswordResetToken
+from tests.factories_async import AsyncSQLAlchemyFactory
 
 
-class UserFactory(factory.alchemy.SQLAlchemyModelFactory):
+class UserFactory(AsyncSQLAlchemyFactory):
     class Meta:
         model = User
         sqlalchemy_session_persistence = "flush"
@@ -21,45 +22,47 @@ class UserFactory(factory.alchemy.SQLAlchemyModelFactory):
     )
 
 
-class FakeRefreshTokenExpired(factory.alchemy.SQLAlchemyModelFactory):
+class FakeRefreshTokenExpired(AsyncSQLAlchemyFactory):
     class Meta:
         model = RefreshToken
         sqlalchemy_session_persistence = "flush"
 
     user_id = 1
+    token = factory.Faker("uuid4")
     expires_at = factory.Faker("past_datetime", tzinfo=UTC)
 
 
-class FakeRefreshToken(factory.alchemy.SQLAlchemyModelFactory):
+class FakeRefreshToken(AsyncSQLAlchemyFactory):
     class Meta:
         model = RefreshToken
         sqlalchemy_session_persistence = "flush"
 
     user_id = 1
+    token = factory.Faker("uuid4")
     expires_at = factory.Faker("future_datetime", tzinfo=UTC)
 
 
-class FakePasswordResetTokenExpired(factory.alchemy.SQLAlchemyModelFactory):
+class FakePasswordResetTokenExpired(AsyncSQLAlchemyFactory):
     class Meta:
         model = PasswordResetToken
         sqlalchemy_session_persistence = "flush"
 
     user_id = 1
     expires_at = factory.Faker("past_datetime", tzinfo=UTC)
-    token = "dummy-token"
+    token = factory.Faker("uuid4")
 
 
-class FakePasswordResetToken(factory.alchemy.SQLAlchemyModelFactory):
+class FakePasswordResetToken(AsyncSQLAlchemyFactory):
     class Meta:
         model = PasswordResetToken
         sqlalchemy_session_persistence = "flush"
 
     user_id = 1
     expires_at = factory.Faker("future_datetime", tzinfo=UTC)
-    token = "dummy-token"
+    token = factory.Faker("uuid4")
 
 
-class GenreFactory(factory.alchemy.SQLAlchemyModelFactory):
+class GenreFactory(AsyncSQLAlchemyFactory):
     class Meta:
         model = Genre
         sqlalchemy_session_persistence = "flush"
@@ -67,7 +70,7 @@ class GenreFactory(factory.alchemy.SQLAlchemyModelFactory):
     name = factory.Faker("word")
 
 
-class CertificationFactory(factory.alchemy.SQLAlchemyModelFactory):
+class CertificationFactory(AsyncSQLAlchemyFactory):
     class Meta:
         model = Certification
         sqlalchemy_session_persistence = "flush"
@@ -77,7 +80,7 @@ class CertificationFactory(factory.alchemy.SQLAlchemyModelFactory):
     )
 
 
-class MovieFactory(factory.alchemy.SQLAlchemyModelFactory):
+class MovieFactory(AsyncSQLAlchemyFactory):
     class Meta:
         model = Movie
         sqlalchemy_session_persistence = "flush"
@@ -95,7 +98,7 @@ class MovieFactory(factory.alchemy.SQLAlchemyModelFactory):
     certification = factory.SubFactory(CertificationFactory)
 
 
-class UserProfileFactory(factory.alchemy.SQLAlchemyModelFactory):
+class UserProfileFactory(AsyncSQLAlchemyFactory):
     class Meta:
         model = UserProfile
         sqlalchemy_session_persistence = "flush"
@@ -109,7 +112,7 @@ class UserProfileFactory(factory.alchemy.SQLAlchemyModelFactory):
     avatar_url = None
 
 
-class MovieCommentFactory(factory.alchemy.SQLAlchemyModelFactory):
+class MovieCommentFactory(AsyncSQLAlchemyFactory):
     class Meta:
         model = MovieComment
         sqlalchemy_session_persistence = "flush"
