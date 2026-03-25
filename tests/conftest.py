@@ -3,21 +3,16 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from moto import mock_aws
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from dotenv import load_dotenv
-from pathlib import Path
 
 from config import get_settings
 from main import create_app
 from database import get_db
 from users.enums import UserGroupEnum
 from users.models import UserGroup
+from auth.token_manager import JWTAuthManager
 
 from tests.settings import get_test_settings
 from tests.utils.db import create_test_engine, drop_test_engine
-
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env.test")
 
 
 @pytest.fixture(scope="session")
@@ -281,3 +276,71 @@ def mock_celery_tasks(monkeypatch):
         "auth.service.send_password_reset_complete_email.delay",
         fake_delay
     )
+
+
+@pytest.fixture
+def jwt_manager():
+    """
+    A fixture that yields an instance of the JWTAuthManager class.
+
+    The manager is initialized with the secret keys and algorithm defined in
+    the test settings.
+
+    This fixture is useful for testing code that interacts with JWTAuthManager
+    instances, such as authentication or token verification functions.
+
+    :return: An instance of the JWTAuthManager class.
+    :rtype: JWTAuthManager
+    """
+    settings = get_test_settings()
+    return JWTAuthManager(
+        secret_key_access=settings.JWT_SECRET_KEY_ACCESS.get_secret_value(),
+        secret_key_refresh=settings.JWT_SECRET_KEY_REFRESH.get_secret_value(),
+        algorithm=settings.JWT_SIGNING_ALGORITHM,
+    )
+
+
+@pytest.fixture
+def make_access_token(jwt_manager):
+    """
+    A fixture that yields a function that generates an access token for a given user ID.
+
+    The function takes two parameters: user_id and expires_delta. user_id is the ID of the user
+    to generate the token for, and expires_delta is an optional timedelta that specifies
+    the expiration time of the generated token.
+
+    If expires_delta is not provided, the generated token will expire in 15 minutes.
+
+    This fixture is useful for testing code that interacts with access tokens, such as
+    authentication or token verification functions.
+
+    :param user_id: The ID of the user to generate the token for.
+    :param expires_delta: An optional timedelta that specifies the expiration time
+        of the generated token.
+    :return: A function that generates an access token for a given user ID.
+    :rtype: Callable[[int, Optional[timedelta]], str]
+    """
+    def _make(user_id: int, expires_delta=None):
+        return jwt_manager.create_access_token(
+            {"user_id": user_id},
+            expires_delta=expires_delta
+        )
+    return _make
+
+
+@pytest.fixture
+def make_token_without_user_id(jwt_manager):
+    """
+    A fixture that yields a function that generates an access token without a user ID.
+
+    The generated token will contain the key-value pair {"foo": "bar"}.
+
+    This fixture is useful for testing code that interacts with access tokens, such as
+    authentication or token verification functions, when the token does not contain a user ID.
+
+    :return: A function that generates an access token without a user ID.
+    :rtype: Callable[[], str]
+    """
+    def _make():
+        return jwt_manager.create_access_token({"foo": "bar"})
+    return _make
