@@ -64,6 +64,7 @@ target-version = "py312"
 exclude = [
     "alembic",
     "tests",
+    "load_tests"
 ]
 # fix = true
 
