@@ -1,6 +1,7 @@
 from typing import Any
 
 from sqlalchemy import Select, case, func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
@@ -177,28 +178,33 @@ class MovieRepository:
     async def upsert_movie_reaction(
         self, user_id: int, movie_id: int, is_like: bool
     ) -> None:
-        """Upsert a movie reaction from a user.
+        """Upserts a movie reaction into the database.
+
+        This method is atomic, and uses PostgreSQL's `ON CONFLICT DO UPDATE`
+        clause to ensure that no race conditions occur, and no duplicate
+        inserts are made.
 
         :param user_id: The user ID who reacted to the movie
         :param movie_id: The movie ID which the user reacted to
-        :param is_like: Whether the user liked the movie
-
+        :param is_like: A boolean indicating whether the reaction is
+            a like or dislike
         :return: None
         """
-        # 1. Check if the user has already reacted to the movie
-        stmt = select(MovieLike).where(
-            MovieLike.user_id == user_id, MovieLike.movie_id == movie_id
-        )
-        result = await self.db.execute(stmt)
-        existing = result.scalar_one_or_none()
-
-        # 2. Update or insert the reaction
-        if existing:
-            existing.is_like = is_like
-        else:
-            self.db.add(
-                MovieLike(user_id=user_id, movie_id=movie_id, is_like=is_like)
+        # atomic UPSERT moves concurrency control into PostgreSQL
+        # no race, no duplicate inserts, no 500s
+        stmt = (
+            insert(MovieLike)
+            .values(
+                user_id=user_id,
+                movie_id=movie_id,
+                is_like=is_like,
             )
+            .on_conflict_do_update(
+                index_elements=[MovieLike.user_id, MovieLike.movie_id],
+                set_={"is_like": is_like},
+            )
+        )
+        await self.db.execute(stmt)
 
     async def remove_movie_reaction(self, user_id: int, movie_id: int) -> None:
         """Remove a movie reaction from a user.
@@ -270,30 +276,35 @@ class MovieRepository:
     async def upsert_movie_rating(
         self, user_id: int, movie_id: int, rating: int
     ) -> None:
-        """Upsert a movie rating from a user.
+        """Upserts a movie rating into the database.
+
+        This method is atomic, and uses PostgreSQL's `ON CONFLICT DO UPDATE`
+        clause to ensure that no race conditions occur, and no duplicate
+        inserts are made.
 
         :param user_id: The user ID who rated the movie
         :param movie_id: The movie ID which the user rated
-        :param rating: The rating given by the user
-
+        :param rating: The rating value to update
         :return: None
         """
-        # 1. Check if the user has already rated the movie
-        stmt = select(MovieRating).where(
-            MovieRating.user_id == user_id, MovieRating.movie_id == movie_id
-        )
-        result = await self.db.execute(stmt)
-        existing = result.scalar_one_or_none()
-
-        # 2. Update or insert the rating
-        if existing:
-            existing.rating = rating
-        else:
-            self.db.add(
-                MovieRating(user_id=user_id, movie_id=movie_id, rating=rating)
+        # atomic UPSERT moves concurrency control into PostgreSQL
+        # no race, no duplicate inserts, no 500s
+        # INSERT INTO movie_ratings (...)
+        # ON CONFLICT (user_id, movie_id)
+        # DO UPDATE SET rating = EXCLUDED.rating;
+        stmt = (
+            insert(MovieRating)
+            .values(
+                user_id=user_id,
+                movie_id=movie_id,
+                rating=rating,
             )
-
-        await self.db.flush()
+            .on_conflict_do_update(
+                index_elements=[MovieRating.user_id, MovieRating.movie_id],
+                set_={"rating": rating},
+            )
+        )
+        await self.db.execute(stmt)
 
     async def delete_movie_rating(self, user_id: int, movie_id: int) -> None:
         """Delete a movie rating from a user.
