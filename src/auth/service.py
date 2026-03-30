@@ -20,6 +20,7 @@ from auth.schemas import (
     UserLoginResponseSchema,
     UserRegistrationRequestSchema,
 )
+from auth.utils import generate_secure_token
 from cinema_celery.tasks.email_tasks import (
     send_activation_complete_email,
     send_activation_email,
@@ -27,7 +28,6 @@ from cinema_celery.tasks.email_tasks import (
     send_password_reset_email,
 )
 from config import BaseAppSettings
-from exceptions import BaseSecurityError
 from logger_config import get_logger
 from notifications.interfaces import AuthEmailSenderInterface
 from users.models import User
@@ -261,20 +261,20 @@ class AuthService:
         login_data: UserLoginRequestSchema,
         settings: BaseAppSettings,
     ) -> UserLoginResponseSchema:
-        """Login a user and generate an access token and refresh token.
+        """Logs in the user and returns an access token.
 
         Args:
-            login_data (`UserLoginRequestSchema`): The login data containing
-                the user's email and password.
-            settings (`BaseAppSettings`): The application settings.
+            login_data (UserLoginRequestSchema): The login data containing the
+                user's email and password.
+            settings (BaseAppSettings): The application settings.
 
         Returns:
-            `UserLoginResponseSchema`: A response containing the access token
-                and refresh token.
+            UserLoginResponseSchema: A response containing an access token.
 
         Raises:
-            HTTPException: If the user credentials are invalid, or if the user
-                account is not activated.
+            HTTPException: If the email or password is incorrect.
+            HTTPException: If the user is not authenticated.
+            HTTPException: If the user account is not activated.
         """
         log.info(f"Login attempt for {login_data.email}")
 
@@ -293,17 +293,17 @@ class AuthService:
                 detail="User account is not activated.",
             )
 
-        # 2. Generate refresh token (JWT)
-        jwt_refresh_token = self.jwt.create_refresh_token({"user_id": user.id})
+        # 2. Generate refresh token
+        refresh_token = generate_secure_token(64)
 
         # 3. Store refresh token in DB
         try:
-            refresh_token = RefreshToken.create(
+            refresh_token_record = RefreshToken.create(
                 user_id=user.id,
                 days_valid=settings.LOGIN_TIME_DAYS,
-                token=jwt_refresh_token,
+                token=refresh_token,
             )
-            self.auth.add(refresh_token)
+            self.auth.add(refresh_token_record)
             await self.auth.commit()
         except SQLAlchemyError as error:
             await self.auth.rollback()
@@ -315,43 +315,34 @@ class AuthService:
         # 4. Generate access token
         jwt_access_token = self.jwt.create_access_token({"user_id": user.id})
 
+        # Optional - Delete old refresh tokens on login
+        # await self.auth.delete_refresh_tokens_for_user(user.id)
+
         log.info(f"User {user.email} logged in successfully")
 
         return UserLoginResponseSchema(
-            access_token=jwt_access_token, refresh_token=jwt_refresh_token
+            access_token=jwt_access_token, refresh_token=refresh_token
         )
 
     async def refresh_access_token(
         self, token_data: TokenRefreshRequestSchema
     ) -> TokenRefreshResponseSchema:
-        """Refreshes an access token given a valid refresh token.
+        """Refreshes an access token based on the provided refresh token.
 
         Args:
-            token_data (`TokenRefreshRequestSchema`): The refresh token data
-                containing the refresh token.
+            token_data (TokenRefreshRequestSchema): The refresh token data
 
         Returns:
-            `TokenRefreshResponseSchema`: A response containing the new access
-                token and optionally the new refresh token.
+            TokenRefreshResponseSchema: A response containing the new access
+            token.
 
         Raises:
             HTTPException: If the refresh token is invalid, expired, or doesn't
-                belong to the user.
-            HTTPException: If the user is not found.
+            belong to the user.
         """
         log.info("Refreshing access token...")
 
-        # 1. Decode refresh token
-        try:
-            decoded = self.jwt.decode_refresh_token(token_data.refresh_token)
-            user_id = decoded.get("user_id")
-        except BaseSecurityError as error:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(error),
-            ) from error
-
-        # 2. Validate refresh token exists in DB
+        # 1. Validate refresh token exists in DB
         refresh_token_record = await self.auth.get_refresh_token_record(
             token=token_data.refresh_token
         )
@@ -362,9 +353,8 @@ class AuthService:
                 detail="Refresh token not found.",
             )
 
-        # 3. Validate expiration
+        # 2. Validate expiration
         now_utc = datetime.now(UTC)
-
         if refresh_token_record.expires_at < now_utc:
             await self.auth.delete_refresh_token(refresh_token_record)
             await self.auth.commit()
@@ -373,8 +363,10 @@ class AuthService:
                 detail="Refresh token expired.",
             )
 
-        # 4. Validate user
-        user = await self.auth.get_user_by_id(user_id=user_id)
+        # 3. Validate user
+        user = await self.auth.get_user_by_id(
+            user_id=refresh_token_record.user_id
+        )
 
         if not user:
             raise HTTPException(
@@ -382,31 +374,25 @@ class AuthService:
                 detail="User not found.",
             )
 
-        # 5. Validate refresh token belongs to this user(ownership check)
-        if refresh_token_record.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Refresh token does not belong to this user.",
-            )
+        # 4. (Optional) rotate refresh token here if needed
+        # new_refresh = generate_secure_token(64)
+        # refresh_token_record.token = new_refresh
+        # await self.auth.commit()
 
-        # 6. Rotate refresh token
-        # new_refresh_jwt = self.jwt.create_refresh_token({"user_id": user_id})
-        # refresh_token_record.token = new_refresh_jwt
-
-        # 7. Generate new access token
-        access_token = self.jwt.create_access_token({"user_id": user_id})
+        # 5. Generate new access token
+        access_token = self.jwt.create_access_token({"user_id": user.id})
 
         log.info("Access token refreshed successfully")
 
         return TokenRefreshResponseSchema(
             access_token=access_token,
-            # refresh_token=new_refresh_jwt,
+            # refresh_token=new_refresh,
         )
 
     async def logout_user(
         self, token_data: TokenRefreshRequestSchema
     ) -> MessageResponseSchema:
-        """Logs out a user based on the provided refresh token.
+        """Logs out a user by invalidating the refresh token.
 
         Args:
             token_data (`TokenRefreshRequestSchema`): The refresh token data
@@ -416,23 +402,11 @@ class AuthService:
             `MessageResponseSchema`: A response containing a success message.
 
         Raises:
-            HTTPException: If the refresh token is invalid, expired, or doesn't
-                belong to the user.
-            HTTPException: If the user is not found.
+            HTTPException: If the refresh token is invalid.
         """
         log.info("Logout attempt...")
 
-        # 1. Decode refresh token
-        try:
-            decoded = self.jwt.decode_refresh_token(token_data.refresh_token)
-            user_id = decoded.get("user_id")
-        except BaseSecurityError as error:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(error),
-            ) from error
-
-        # 2. Find refresh token in DB
+        # 1. Find refresh token in DB
         refresh_token_record = await self.auth.get_refresh_token_record(
             token=token_data.refresh_token
         )
@@ -443,18 +417,13 @@ class AuthService:
                 detail="Refresh token not found.",
             )
 
-        # 3. Ownership check
-        if refresh_token_record.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Refresh token does not belong to this user.",
-            )
-
-        # 4. Delete refresh token
+        # 2. Delete refresh token
         await self.auth.delete_refresh_token(refresh_token_record)
         await self.auth.commit()
 
-        log.info(f"User {user_id} logged out successfully")
+        log.info(
+            f"User {refresh_token_record.user_id} logged out successfully"
+        )
 
         return MessageResponseSchema(message="Logged out successfully.")
 
