@@ -10,7 +10,7 @@ router = APIRouter(prefix="/genres", tags=["genres"])
 
 
 @router.get(
-    "/",
+    "",
     response_model=list[GenreWithCountSchema],
     summary="List genres with movie count",
     description="Retrieve a list of genres with their associated movie count.",

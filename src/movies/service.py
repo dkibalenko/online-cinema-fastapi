@@ -82,10 +82,12 @@ class MovieService:
         repo: MovieRepository,
         cache: CacheService,
         cache_invalidator: MovieCacheInvalidationService,
+        enable_cache: bool = True,  # used for load testing etc.
     ):
         self.repo = repo
         self.cache = cache
         self.cache_invalidator = cache_invalidator
+        self.enable_cache = enable_cache
 
     async def get_movie_list(
         self,
@@ -122,10 +124,11 @@ class MovieService:
 
         cache_key = f"movies:list:{user_id}:{hashed}"
 
-        cached = await self.cache.get(cache_key)
-        if cached:
-            # Reconstruct pagination object
-            return Page(**cached)
+        if self.enable_cache:
+            cached = await self.cache.get(cache_key)
+            if cached:
+                # Reconstruct pagination object
+                return Page(**cached)
 
         # Not cached → compute
         filtered_query = build_movie_filter_query(filter_query, sort_query)
@@ -140,11 +143,12 @@ class MovieService:
             movie.is_favorite = movie.id in favorite_ids
 
         # Cache the serialized page
-        await self.cache.set(
-            cache_key,
-            page.model_dump(),
-            ttl=60,  # 1 minute
-        )
+        if self.enable_cache:
+            await self.cache.set(
+                cache_key,
+                page.model_dump(),
+                ttl=60,  # 1 minute
+            )
 
         return page
 
@@ -163,9 +167,11 @@ class MovieService:
         log.info(f"Fetching movie detail | movie_id={movie_id}")
 
         cache_key = f"movie:detail:{movie_id}:user:{user_id}"
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return MovieDetailSchema(**cached)
+
+        if self.enable_cache:
+            cached = await self.cache.get(cache_key)
+            if cached:
+                return MovieDetailSchema(**cached)
 
         movie = await self.repo.get_movie_by_id_with_relations(movie_id)
 
@@ -180,7 +186,9 @@ class MovieService:
 
         result = MovieDetailSchema(**movie.__dict__, is_favorite=is_favorite)
 
-        await self.cache.set(cache_key, result.model_dump(), ttl=600)
+        if self.enable_cache:
+            await self.cache.set(cache_key, result.model_dump(), ttl=600)
+
         return result
 
     async def create_movie(self, data: MovieCreateSchema) -> Movie:
@@ -378,10 +386,12 @@ class MovieReactionService:
         repo: MovieRepository,
         cache: CacheService,
         cache_invalidator: MovieCacheInvalidationService,
+        enable_cache: bool = True,  # used for load testing etc.
     ):
         self.repo = repo
         self.cache = cache
         self.cache_invalidator = cache_invalidator
+        self.enable_cache = enable_cache
 
     async def _ensure_movie_exists(self, movie_id: int) -> None:
         movie = await self.repo.get_movie_basic(movie_id)
@@ -397,9 +407,10 @@ class MovieReactionService:
         self, user_id: int, movie_id: int
     ) -> MovieReactionSummarySchema:
         cache_key = f"movie:{movie_id}:reactions:user:{user_id}"
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return MovieReactionSummarySchema(**cached)
+        if self.enable_cache:
+            cached = await self.cache.get(cache_key)
+            if cached:
+                return MovieReactionSummarySchema(**cached)
 
         likes, dislikes = await self.repo.get_movie_reaction_counts(movie_id)
         user_reaction = await self.repo.get_user_movie_reaction(
@@ -421,7 +432,8 @@ class MovieReactionService:
         )
 
         # short TTL – reactions change often
-        await self.cache.set(cache_key, result.model_dump(), ttl=60)
+        if self.enable_cache:
+            await self.cache.set(cache_key, result.model_dump(), ttl=60)
         return result
 
     async def like_movie(
@@ -440,7 +452,19 @@ class MovieReactionService:
         await self.repo.upsert_movie_reaction(
             user_id=user_id, movie_id=movie_id, is_like=True
         )
-        await self.repo.commit()
+
+        try:
+            await self.repo.commit()
+        except IntegrityError as e:
+            log.warning(
+                f"Like failed — already liked | user_id={user_id} "
+                f"movie_id={movie_id}"
+            )
+            await self.repo.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You have already liked this movie.",
+            ) from e
 
         # invalidate reactions cache for this user+movie
         await self.cache_invalidator.invalidate_reactions(movie_id, user_id)
@@ -470,7 +494,20 @@ class MovieReactionService:
         await self.repo.upsert_movie_reaction(
             user_id=user_id, movie_id=movie_id, is_like=False
         )
-        await self.repo.commit()
+
+        try:
+            await self.repo.commit()
+        except IntegrityError as e:
+            log.warning(
+                f"Dislike failed — already disliked | user_id={user_id} "
+                f"movie_id={movie_id}"
+            )
+            await self.repo.rollback()
+            # retry once or return 409
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Concurrent update conflict. Please retry.",
+            ) from e
 
         # invalidate reactions cache for this user+movie
         await self.cache_invalidator.invalidate_reactions(movie_id, user_id)
@@ -529,9 +566,10 @@ class MovieReactionService:
         )
 
         cache_key = f"movie:{movie_id}:reactions:user:{user_id}"
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return MovieReactionSummarySchema(**cached)
+        if self.enable_cache:
+            cached = await self.cache.get(cache_key)
+            if cached:
+                return MovieReactionSummarySchema(**cached)
 
         movie = await self.repo.get_movie_basic(movie_id)
         if not movie:
@@ -561,7 +599,8 @@ class MovieReactionService:
         )
 
         # short TTL because reactions change often
-        await self.cache.set(cache_key, result.model_dump(), ttl=60)
+        if self.enable_cache:
+            await self.cache.set(cache_key, result.model_dump(), ttl=60)
 
         return result
 
@@ -590,7 +629,19 @@ class MovieReactionService:
             user_id=user_id, movie_id=movie_id, rating=payload.rating
         )
 
-        await self.repo.commit()
+        try:
+            await self.repo.commit()
+        except IntegrityError as e:
+            log.warning(
+                f"Rating failed — already rated | user_id={user_id} "
+                f"movie_id={movie_id}"
+            )
+            await self.repo.rollback()
+            # retry once or return 409
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Concurrent update conflict. Please retry.",
+            ) from e
 
         # invalidate rating summary cache
         await self.cache_invalidator.invalidate_rating(movie_id, user_id)
@@ -634,7 +685,19 @@ class MovieReactionService:
 
         await self.repo.delete_movie_rating(user_id=user_id, movie_id=movie_id)
 
-        await self.repo.commit()
+        try:
+            await self.repo.commit()
+        except IntegrityError as e:
+            log.warning(
+                f"Rating delete failed — already deleted | user_id={user_id} "
+                f"movie_id={movie_id}"
+            )
+            await self.repo.rollback()
+            # retry once or return 409
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Concurrent update conflict. Please retry.",
+            ) from e
 
         await self.cache_invalidator.invalidate_movie_lists(user_id)
 
@@ -667,9 +730,10 @@ class MovieReactionService:
         )
 
         cache_key = f"movie:{movie_id}:rating_summary:user:{user_id}"
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return MovieRatingSummarySchema(**cached)
+        if self.enable_cache:
+            cached = await self.cache.get(cache_key)
+            if cached:
+                return MovieRatingSummarySchema(**cached)
 
         movie = await self.repo.get_movie_basic(movie_id)
         if not movie:
@@ -694,7 +758,8 @@ class MovieReactionService:
             user_rating=user_rating,
         )
 
-        await self.cache.set(cache_key, result.model_dump(), ttl=60)
+        if self.enable_cache:
+            await self.cache.set(cache_key, result.model_dump(), ttl=60)
         return result
 
     async def add_to_favorites(

@@ -39,10 +39,17 @@ def get_movie_service(
     Provides methods for interacting with the database in regards to movies.
 
     :param db: An async database session.
+    :param cache: An instance of CacheService.
+    :param cache_invalidator: An instance of MovieCacheInvalidationService.
     :return: An instance of MovieService.
     """
     repo = MovieRepository(db)
-    return MovieService(repo, cache, cache_invalidator)
+    return MovieService(
+        repo,
+        cache,
+        cache_invalidator,
+        # enable_cache=False,  # used for load testing
+    )
 
 
 def get_movie_reaction_service(
@@ -62,7 +69,12 @@ def get_movie_reaction_service(
     :return: An instance of MovieReactionService.
     """
     repo = MovieRepository(db)
-    return MovieReactionService(repo, cache, cache_invalidator)
+    return MovieReactionService(
+        repo,
+        cache,
+        cache_invalidator,
+        # enable_cache=False,  # used for load testing
+    )
 
 
 def get_movie_comment_service(
