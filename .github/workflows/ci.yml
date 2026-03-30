@@ -6,14 +6,28 @@ on:
   pull_request:
     branches: ["dev"]
 
+permissions:
+  contents: read        # required for checkout
+  actions: read
+  checks: write         # required for Codecov PR annotations
+  pull-requests: write  # optional, improves PR integration
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
+      # -----------------------------
+      # Checkout
+      # -----------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # ensures full history for coverage tools
 
+      # -----------------------------
+      # Python Setup
+      # -----------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -25,14 +39,14 @@ jobs:
       - name: Configure Poetry
         run: poetry config virtualenvs.in-project true
 
+      # -----------------------------
+      # Caching
+      # -----------------------------
       - name: Cache Poetry virtualenv
         uses: actions/cache@v4
         with:
           path: ./.venv
           key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
-
-      - name: Install dependencies
-        run: poetry install --no-interaction --no-root --with dev
 
       - name: Cache pip
         uses: actions/cache@v4
@@ -40,13 +54,21 @@ jobs:
           path: ~/.cache/pip
           key: pip-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
 
+      # -----------------------------
+      # Install Dependencies
+      # -----------------------------
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root --with dev
+
+      # -----------------------------
+      # Environment Variables
+      # -----------------------------
       - name: Load CI environment variables
         run: cp .env.ci .env
 
       # -----------------------------
       # Code Quality Checks
       # -----------------------------
-
       - name: Ruff Lint
         run: poetry run ruff check .
 
@@ -59,7 +81,6 @@ jobs:
       # -----------------------------
       # Testing + Coverage
       # -----------------------------
-
       - name: Run Tests with Coverage
         run: poetry run pytest --cov=src --cov-report=xml --cov-report=term
 
@@ -69,8 +90,12 @@ jobs:
           name: coverage-report
           path: coverage.xml
 
+      # -----------------------------
+      # Codecov Upload
+      # -----------------------------
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           files: coverage.xml
           fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}   # only required for private repos
