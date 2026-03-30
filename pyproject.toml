@@ -52,6 +52,7 @@ ruff = "^0.15.5"
 pre-commit = "^4.5.1"
 types-aiofiles = "^25.1.0.20251011"
 pytest-cov = "^7.0.0"
+locust = "^2.43.3"
 
 [build-system]
 requires = ["poetry-core"]
