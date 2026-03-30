@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from auth.models import ActivationToken, RefreshToken, PasswordResetToken
 from auth.token_manager import JWTAuthManager
+from auth.utils import generate_secure_token
 from users.models import User
 from tests.settings import get_test_settings
 
@@ -146,14 +147,12 @@ async def test_login(client: AsyncClient, test_engine, default_user_group):
 async def test_refresh_token(
     client: AsyncClient, test_engine, default_user_group
 ):
-    """Tests the refresh token endpoint.
+    """
+    Tests the refresh token endpoint.
 
-    Creates an active user and a refresh token JWT with user_id claim,
-    persists the matching RefreshToken record in the database,
-    calls the refresh endpoint with the correct refresh token,
-    and asserts that the response contains a new access token and
-    does not contain a new refresh token (depending on whether rotation is
-    enabled).
+    Creates an active user and a refresh token, calls the refresh
+    endpoint with the correct token, and asserts that the response
+    contains an access token but not a refresh token.
 
     Parameters:
         client (AsyncClient): The test client
@@ -169,11 +168,6 @@ async def test_refresh_token(
 
     # Use the same settings as the app (overridden in conftest)
     settings = get_test_settings()
-    jwt_manager = JWTAuthManager(
-        secret_key_access=settings.JWT_SECRET_KEY_ACCESS.get_secret_value(),
-        secret_key_refresh=settings.JWT_SECRET_KEY_REFRESH.get_secret_value(),
-        algorithm=settings.JWT_SIGNING_ALGORITHM,
-    )
 
     # 1. Create active user
     async with async_session() as session:
@@ -186,14 +180,14 @@ async def test_refresh_token(
         session.add(user)
         await session.flush()
 
-        # 2. Create refresh token JWT with user_id claim
-        refresh_jwt = jwt_manager.create_refresh_token({"user_id": user.id})
+        # 2. Create refresh token
+        refresh_token = generate_secure_token(48)
 
         # 3. Persist matching RefreshToken record in DB
         refresh_record = RefreshToken.create(
             user_id=user.id,
             days_valid=settings.LOGIN_TIME_DAYS,
-            token=refresh_jwt,
+            token=refresh_token,
         )
         session.add(refresh_record)
         await session.commit()
@@ -201,7 +195,7 @@ async def test_refresh_token(
     # 4. Call refresh endpoint
     response = await client.post(
         "/api/v1/cinema/auth/refresh",
-        json={"refresh_token": refresh_jwt},
+        json={"refresh_token": refresh_token},
     )
 
     assert response.status_code == 200
@@ -266,9 +260,8 @@ async def test_logout(
     """
     Tests the logout endpoint.
 
-    Creates an active user and a refresh token, calls the logout endpoint
-    with the correct refresh token, and asserts that the user is logged out
-    successfully and the refresh token is deleted.
+    Ensures that the logout endpoint deletes the refresh token
+    associated with the user and returns a success message.
 
     Parameters:
         client (AsyncClient): The test client
@@ -278,17 +271,11 @@ async def test_logout(
     Returns:
         None
     """
-    # Create user + refresh token
     async_session = async_sessionmaker(
         test_engine, expire_on_commit=False, class_=AsyncSession
     )
-    settings = get_test_settings()
-    jwt_manager = JWTAuthManager(
-        secret_key_access=settings.JWT_SECRET_KEY_ACCESS.get_secret_value(),
-        secret_key_refresh=settings.JWT_SECRET_KEY_REFRESH.get_secret_value(),
-        algorithm=settings.JWT_SIGNING_ALGORITHM,
-    )
 
+    # Create user + refresh token
     async with async_session() as session:
         user = User.create(
             email="logout@example.com",
@@ -299,15 +286,16 @@ async def test_logout(
         session.add(user)
         await session.flush()
 
-        refresh_jwt = jwt_manager.create_refresh_token({"user_id": user.id})
+        refresh_token = generate_secure_token(48)
+
         session.add(RefreshToken.create(
-            user_id=user.id, days_valid=7, token=refresh_jwt)
+            user_id=user.id, days_valid=7, token=refresh_token)
         )
         await session.commit()
 
     response = await client.post(
         "/api/v1/cinema/auth/logout",
-        json={"refresh_token": refresh_jwt},
+        json={"refresh_token": refresh_token},
     )
 
     assert response.status_code == 200

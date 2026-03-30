@@ -101,7 +101,7 @@ async def test_login_user_db_error():
 
     mock_repo = AsyncMock()
     mock_repo.get_user_by_email = AsyncMock(return_value=user)
-    mock_repo.add = AsyncMock()
+    mock_repo.add = MagicMock()
     mock_repo.commit = AsyncMock(side_effect=SQLAlchemyError("DB error"))
     mock_repo.rollback = AsyncMock()
 
@@ -126,11 +126,11 @@ async def test_login_user_db_error():
 @pytest.mark.asyncio
 async def test_login_user_success():
     """
-    Tests that attempting to login an active user with correct credentials returns an
-    access token and a refresh token.
+    Tests the happy path of the login endpoint.
 
-    Ensures that the add method is called once on the repo, the commit method is
-    called once on the repo, and the access token and refresh token are returned.
+    Ensures that when the correct email and password are provided, an access token
+    and refresh token are generated and returned, and the commit method is called
+    once on the repo.
     """
     user = UserFactory.build()
     user.verify_password = MagicMock(return_value=True)
@@ -138,11 +138,10 @@ async def test_login_user_success():
 
     mock_repo = AsyncMock()
     mock_repo.get_user_by_email = AsyncMock(return_value=user)
-    mock_repo.add = AsyncMock()
+    mock_repo.add = MagicMock()
     mock_repo.commit = AsyncMock()
 
     mock_jwt = MagicMock()
-    mock_jwt.create_refresh_token.return_value = "refresh123"
     mock_jwt.create_access_token.return_value = "access123"
 
     mock_email_sender = MagicMock()
@@ -155,8 +154,13 @@ async def test_login_user_success():
 
     response = await service.login_user(data, settings)
 
+    # access token still mocked
     assert response.access_token == "access123"
-    assert response.refresh_token == "refresh123"
 
+    # refresh token is a random opaque string
+    assert isinstance(response.refresh_token, str)
+    assert len(response.refresh_token) > 0
+
+    # ensure repo interactions done
     mock_repo.add.assert_called_once()
     mock_repo.commit.assert_called_once()

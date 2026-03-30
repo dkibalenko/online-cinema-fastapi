@@ -72,7 +72,7 @@ async def test_password_reset_old_token_deleted(monkeypatch):
     mock_repo.get_user_by_email = AsyncMock(return_value=user)
     mock_repo.get_password_reset_token_by_user_id = AsyncMock(return_value=old_token)
     mock_repo.delete_password_reset_token = AsyncMock()
-    mock_repo.add = AsyncMock()
+    mock_repo.add = MagicMock()
     mock_repo.commit = AsyncMock()
 
     fake_delay = MagicMock()
@@ -108,7 +108,7 @@ async def test_password_reset_db_error(monkeypatch):
     mock_repo = AsyncMock()
     mock_repo.get_user_by_email = AsyncMock(return_value=user)
     mock_repo.get_password_reset_token_by_user_id = AsyncMock(return_value=None)
-    mock_repo.add = AsyncMock()
+    mock_repo.add = MagicMock()
     mock_repo.commit = AsyncMock(side_effect=SQLAlchemyError("DB error"))
     mock_repo.rollback = AsyncMock()
 

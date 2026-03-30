@@ -102,7 +102,7 @@ async def test_resend_activation_deletes_old_token(monkeypatch):
     mock_repo.get_user_by_email = AsyncMock(return_value=user)
     mock_repo.get_activation_token_by_user_id = AsyncMock(return_value=old_token)
     mock_repo.delete_activation_token = AsyncMock()
-    mock_repo.add = AsyncMock()
+    mock_repo.add = MagicMock()
 
     mock_jwt = MagicMock()
     mock_email_sender = MagicMock()
@@ -144,7 +144,7 @@ async def test_resend_activation_success(monkeypatch):
 
     mock_repo.get_user_by_email = AsyncMock(return_value=user)
     mock_repo.get_activation_token_by_user_id = AsyncMock(return_value=None)
-    mock_repo.add = AsyncMock()
+    mock_repo.add = MagicMock()
 
     mock_jwt = MagicMock()
     mock_email_sender = MagicMock()

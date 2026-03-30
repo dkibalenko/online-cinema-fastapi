@@ -5,7 +5,6 @@ from fastapi import HTTPException
 
 from auth.service import AuthService
 from auth.schemas import TokenRefreshRequestSchema
-from exceptions import BaseSecurityError
 from tests.factories import (
     UserFactory,
     FakeRefreshToken
@@ -15,46 +14,17 @@ from tests.factories import (
 @pytest.mark.asyncio
 async def test_logout_user_invalid_token():
     """
-    Tests that attempting to logout an active user with an invalid refresh token raises
-    an HTTPException with a status code of 400.
-    """
-    mock_repo = AsyncMock()
-    mock_jwt = MagicMock()
-    mock_email_sender = MagicMock()
+    Tests that attempting to logout a user with an invalid refresh token raises an HTTPException
+    with a status code of 401.
 
-    mock_jwt.decode_refresh_token.side_effect = BaseSecurityError("Invalid")
-
-    service = AuthService(mock_repo, mock_jwt, mock_email_sender)
-
-    data = TokenRefreshRequestSchema(refresh_token="badtoken")
-
-    with pytest.raises(HTTPException) as exc:
-        await service.logout_user(data)
-
-    assert exc.value.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_logout_user_token_not_found():
-    """
-    Tests that attempting to logout a user with a valid refresh token but the token does not exist
-    raises an HTTPException with a status code of 401.
-
-    Ensures that the get_refresh_token_record method is called once on the repo, the
+    Ensures that the get_refresh_token_record method is called once on the repo, and the
     exception is raised.
     """
-    user = UserFactory.build()
-    user.id = 1
-
     mock_repo = AsyncMock()
     mock_repo.get_refresh_token_record = AsyncMock(return_value=None)
 
-    mock_jwt = MagicMock()
-    mock_jwt.decode_refresh_token.return_value = {"user_id": user.id}
-
-    service = AuthService(mock_repo, mock_jwt, MagicMock())
-
-    data = TokenRefreshRequestSchema(refresh_token="token123")
+    service = AuthService(mock_repo, MagicMock(), MagicMock())
+    data = TokenRefreshRequestSchema(refresh_token="badtoken")
 
     with pytest.raises(HTTPException) as exc:
         await service.logout_user(data)
@@ -64,31 +34,25 @@ async def test_logout_user_token_not_found():
 
 
 @pytest.mark.asyncio
-async def test_logout_user_wrong_user():
+async def test_logout_user_token_not_found():
     """
-    Tests that attempting to logout an active user with a valid refresh token but belonging to
-    someone else raises an HTTPException with a status code of 401.
+    Tests that attempting to logout a user with a refresh token that doesn't exist in the DB
+    raises an HTTPException with a status code of 401.
+
+    Ensures that the get_refresh_token_record method is called once on the repo, and the
+    exception is raised.
     """
-    user = UserFactory.build()
-    user.id = 1
-
-    token_record = FakeRefreshToken.build(user_id=999)  # belongs to someone else
-
     mock_repo = AsyncMock()
-    mock_repo.get_refresh_token_record = AsyncMock(return_value=token_record)
+    mock_repo.get_refresh_token_record = AsyncMock(return_value=None)
 
-    mock_jwt = MagicMock()
-    mock_jwt.decode_refresh_token.return_value = {"user_id": user.id}
-
-    service = AuthService(mock_repo, mock_jwt, MagicMock())
-
+    service = AuthService(mock_repo, MagicMock(), MagicMock())
     data = TokenRefreshRequestSchema(refresh_token="token123")
 
     with pytest.raises(HTTPException) as exc:
         await service.logout_user(data)
 
     assert exc.value.status_code == 401
-    assert exc.value.detail == "Refresh token does not belong to this user."
+    assert exc.value.detail == "Refresh token not found."
 
 
 #===============================================
@@ -97,11 +61,12 @@ async def test_logout_user_wrong_user():
 @pytest.mark.asyncio
 async def test_logout_user_success():
     """
-    Tests that attempting to logout an active user with a valid refresh token returns a
-    success message.
+    Tests that attempting to logout a user with a valid refresh token returns a response
+    containing a success message.
 
-    Ensures that the delete_refresh_token method is called once on the repo, the
-    commit method is called once on the repo, and the success message is returned.
+    Ensures that the get_refresh_token_record method is called once on the repo, the
+    delete_refresh_token method is called once on the repo, and the commit method is
+    called once on the repo.
     """
     user = UserFactory.build()
     user.id = 1
@@ -113,11 +78,7 @@ async def test_logout_user_success():
     mock_repo.delete_refresh_token = AsyncMock()
     mock_repo.commit = AsyncMock()
 
-    mock_jwt = MagicMock()
-    mock_jwt.decode_refresh_token.return_value = {"user_id": user.id}
-
-    service = AuthService(mock_repo, mock_jwt, MagicMock())
-
+    service = AuthService(mock_repo, MagicMock(), MagicMock())
     data = TokenRefreshRequestSchema(refresh_token="token123")
 
     response = await service.logout_user(data)
