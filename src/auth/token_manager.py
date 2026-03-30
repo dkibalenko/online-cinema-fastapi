@@ -63,27 +63,6 @@ class JWTAuthManager(JWTAuthManagerInterface):
             or timedelta(minutes=self._ACCESS_KEY_EXPIRE_MINUTES),
         )
 
-    def create_refresh_token(
-        self, data: dict, expires_delta: timedelta | None = None
-    ) -> str:
-        """Creates a new refresh token using the provided data and secret key.
-
-        Args:
-            data (dict): Data to encode into the token.
-            expires_delta (Optional[timedelta]): Time delta until the token
-                expires.
-
-        Returns:
-            str: The newly created token.
-        """
-        return self._create_token(
-            type="refresh",
-            data=data,
-            secret_key=self._secret_key_refresh,
-            expires_delta=expires_delta
-            or timedelta(minutes=self._REFRESH_KEY_EXPIRE_MINUTES),
-        )
-
     def decode_access_token(self, token: str) -> dict:
         """Decodes an access token using the provided secret key."""
         try:
@@ -94,29 +73,6 @@ class JWTAuthManager(JWTAuthManagerInterface):
             raise TokenExpiredError from error
         except JWTError as error:
             raise InvalidTokenError from error
-
-    def decode_refresh_token(self, token: str) -> dict:
-        """Decodes a refresh token using the provided secret key."""
-        try:
-            return jwt.decode(
-                token, self._secret_key_refresh, algorithms=[self._algorithm]
-            )
-        except ExpiredSignatureError as error:
-            raise TokenExpiredError from error
-        except JWTError as error:
-            raise InvalidTokenError from error
-
-    def verify_refresh_token_or_raise(self, token: str) -> None:
-        """Verify a refresh token or raise an error if invalid.
-
-        Args:
-            token (str): The refresh token to verify.
-
-        Raises:
-            TokenExpiredError: If the token has expired.
-            InvalidTokenError: If the token is invalid.
-        """
-        self.decode_refresh_token(token)
 
     def verify_access_token_or_raise(self, token: str) -> None:
         """Verify an access token or raise an error if invalid.

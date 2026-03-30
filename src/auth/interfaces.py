@@ -16,25 +16,8 @@ class JWTAuthManagerInterface(ABC):
         pass
 
     @abstractmethod
-    def create_refresh_token(
-        self, data: dict, expires_delta: timedelta | None = None
-    ) -> str:
-        """Create a new refresh token."""
-        pass
-
-    @abstractmethod
     def decode_access_token(self, token: str) -> dict | None:
         """Decode and validate an access token."""
-        pass
-
-    @abstractmethod
-    def decode_refresh_token(self, token: str) -> dict:
-        """Decode and validate a refresh token."""
-        pass
-
-    @abstractmethod
-    def verify_refresh_token_or_raise(self, token: str) -> None:
-        """Verify a refresh token or raise an error if invalid."""
         pass
 
     @abstractmethod
