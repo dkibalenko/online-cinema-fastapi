@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 from pydantic.json import pydantic_encoder
@@ -11,11 +12,17 @@ class CacheService:
     async def get(self, key: str):
         """Retrieves a value from the cache.
 
+        The method tries to retrieve the value within 50ms. If the retrieval
+        takes longer than 50ms, it raises a TimeoutError and returns None.
+
         :param key: The key to retrieve
         :return: The value associated with the key, or None if not found
         :rtype: dict or None
         """
-        value = await self.redis.get(key)
+        try:
+            value = await asyncio.wait_for(self.redis.get(key), timeout=0.05)
+        except TimeoutError:
+            return None
         return json.loads(value) if value else None
 
     async def set(self, key: str, value: dict, ttl: int = 300):

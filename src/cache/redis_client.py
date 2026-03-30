@@ -8,4 +8,5 @@ _settings = get_settings()
 redis_client = Redis.from_url(
     _settings.CACHE_REDIS_URL,
     decode_responses=True,  # ensures Redis returns strings, not bytes
+    max_connections=200,  # eliminate connection blocking
 )
