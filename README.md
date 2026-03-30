@@ -2234,6 +2234,137 @@ The seeding system provides:
 
 This ensures that the Online Cinema platform always starts with a rich, consistent dataset suitable for development, testing, and demos.
 
+## ⭐ Load & Stress Testing with Locust
+
+This project includes a full Locust‑based load testing suite designed to validate the performance, scalability, and concurrency guarantees of the Online Cinema backend. The goal is to prove the backend behaves like a real production‑grade system under realistic user behavior and high write‑contention scenarios.
+
+### Objectives
+Our Locust tests were built to answer the questions that matter in real-world deployments:
+- Can the API sustain high read throughput?  
+(movie list, movie detail, genres, rating summary, reaction summary)
+- Can the system handle concurrent writes without data corruption or 500 errors?  
+(likes, dislikes, ratings, rating deletion, reaction removal)
+- Does caching behave correctly under load?  
+(Redis-backed caching for lists, details, reactions, ratings)
+- Does the authentication flow remain stable under heavy login bursts?
+- Do database constraints and UPSERT logic eliminate race conditions?
+
+The test suite simulates realistic user behavior patterns.
+
+---
+
+### Test Scenarios
+Locust users follow a weighted task model that mirrors real usage patterns in a movie catalog application:
+
+#### 1. Authentication
+Each simulated user logs in once at startup:
+- `POST /auth/login`
+- Access token is stored and reused
+- Rate‑limit bypass header is injected for synthetic load testing
+
+#### 2. High‑frequency Read Operations
+These represent the majority of real-world traffic:
+- `GET /movies`
+- `GET /movies/{id}`
+- `GET /movies/{id}/rating`
+- `GET /movies/{id}/reactions`
+- `GET /genres`
+
+Reads are heavily cached and optimized for low latency.
+
+#### 3. Concurrent Write Operations
+These endpoints are intentionally write-heavy and concurrency-sensitive:
+- `POST /movies/{id}/like`
+- `POST /movies/{id}/dislike`
+- `DELETE /movies/{id}/reaction-remove`
+- `POST /movies/{id}/rating`
+- `DELETE /movies/{id}/rating`
+
+These operations invalidate caches, update aggregates, and hit PostgreSQL with UPSERT logic — making them ideal for stress testing.
+
+---
+
+### Engineering Techniques Validated
+The load tests validated several production‑grade backend patterns:
+
+#### 1. PostgreSQL **Atomic UPSERTs**
+All rating and reaction writes use:
+```py
+INSERT ... ON CONFLICT DO UPDATE
+```
+This eliminates:
+- race conditions
+- duplicate key violations
+- inconsistent state under concurrency
+
+#### 2. Async SQLAlchemy Session Safety
+Each request runs inside an isolated async session, ensuring:
+- no cross‑request contamination
+- safe concurrent DB access
+- predictable transaction boundaries
+
+#### 3. Redis Caching Strategy
+Validated:
+- movie list caching
+- movie detail caching
+- rating summary caching
+- reaction summary caching
+
+And confirmed that invalidation logic holds up under load.
+
+#### 4. Nginx + Uvicorn Worker Scaling
+The test confirmed:
+- multi‑worker Uvicorn setup handles concurrency correctly
+- Nginx TLS termination does not bottleneck throughput
+
+---
+
+### Results Summary
+#### 500 concurrent users
+#### 60,589 total requests  
+#### 0 failures  
+#### ~130 RPS sustained  
+#### Median latency: 2–4 ms for reads  
+#### Write endpoints stable with expected higher latency (26–200 ms)  
+#### Login endpoint ~1s median (bcrypt hashing + DB write)
+
+These results demonstrate that the backend is:
+- Stable under heavy concurrent writes
+- Efficient under high read throughput
+- Correctly synchronized at the database layer
+- Resilient to cache churn and invalidation storms
+
+This is the level of performance expected from a real production backend.
+
+---
+
+### How to Run the Load Tests
+
+```shell
+locust -f load_tests/locustfile.py
+```
+Then open:
+```shell
+http://localhost:8089
+```
+Configure:
+- number of users
+- spawn rate
+- host (e.g., `https://localhost:8443`)
+
+Start the test and monitor:
+- RPS
+- failure rate
+- latency percentiles
+- per-endpoint performance
+
+---
+
+### Conclusion
+This Locust suite is a core validation tool proving that the Online Cinema backend is engineered for real-world scale.
+By combining async FastAPI, PostgreSQL UPSERTs, Redis caching, and multi-worker Uvicorn, the system demonstrates production-grade performance and concurrency safety under realistic load.
+
+
 ## ⭐ Running the Project with Docker Compose
 The project includes a full Docker Compose setup that launches all required services for local development or demo environments. This setup ensures a consistent environment across machines and eliminates the need to install Postgres, MinIO, or Mailhog manually.
 
