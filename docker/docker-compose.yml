@@ -60,7 +60,7 @@ services:
     environment:
       - LOG_LEVEL=debug
       - PYTHONPATH=/usr/src/fastapi
-      - WATCHFILES_FORCE_POLLING=true
+      - WATCHFILES_FORCE_POLLING=true 
     ports:
       - "8000:8000"
     depends_on:

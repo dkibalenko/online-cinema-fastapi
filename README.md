@@ -1,13 +1,306 @@
 # Online Cinema
 
-**Online Cinema API** is an actively developed, production‑grade backend built with **FastAPI**, **SQLAlchemy 2.0**, **Celery**, **Redis**, **PostgreSQL**, **Docker**, **MinIO**, **MailHog**, and a modern Python toolchain.
+**Online Cinema API** is an actively developed, production‑grade backend built with **FastAPI**, **SQLAlchemy 2.0**, **Celery**, **Redis**, **PostgreSQL**, **Docker**, **NGINX**, **WebSockets**, **MinIO**, **MailHog**, and a modern Python toolchain.
 It already includes a complete **pre‑commit workflow**, **CI pipeline**, **authentication system**, **user management**, **movie catalog** (genres, stars, directors), **likes**, **ratings**, **email workflows**, and a fully containerized **multi‑service architecture**.
 
-This project is not a simple CRUD demo — it’s a real backend system designed to showcase **professional engineering practices**, including strict typing, deterministic tooling, domain‑oriented design, and automated quality checks.
+This project is a **resilient backend system**, load tested with Locust, designed to showcase **professional engineering practices**, including strict typing, deterministic tooling, clean design, and automated quality checks.
 
 Development is ongoing. Upcoming milestones include **CD**, **deployment automation**, and expanded **test coverage**.
 
 An online cinema is a digital platform that allows users to browse, watch, and purchase access to movies and other video content over the internet.
+
+
+## ⭐ Architecture Overview
+The backend is organized as a **modular monolith**, designed with service‑oriented boundaries inside a single deployable application. Each module encapsulates its own domain logic, data models, and integrations, resulting in a clean, scalable structure that supports real‑world workflows without the operational overhead of microservices.
+
+
+```
+                               ┌───────────────────────────┐
+                               │        Frontend SPA       │
+                               │  (React / Vue / Next.js)  │
+                               └─────────────┬─────────────┘
+                                             │ HTTPS
+                                             ▼
+                        ┌────────────────────────────────────────────┐
+                        │        NGINX Reverse Proxy                 │
+                        │  SSL termination / routing / CORS          │
+                        │  WebSocket upgrades / Static file delivery │
+                        └────────────────────┬───────────────────────┘
+                                             │
+                                             ▼
+                 ┌─────────────────────────────────────────────────────────┐
+                 │                    FastAPI API                          │
+                 │─────────────────────────────────────────────────────────│
+                 │  • Auth (JWT access + opaque DB-backend refresh tokens) │
+                 │  • Users / Profiles / Movies catalog                    │
+                 │  • Pydantic validation                                  │
+                 │  • Likes / Ratings / Comments / Favorites               │
+                 │  • WebSocket endpoints (live updates)                   │
+                 │  • Background task dispatch (Celery)                    │
+                 └──────────────┬────────────────────────┬─────────────────┘
+                                │                        │
+                                │                        │
+                                ▼                        ▼
+         ┌────────────────────────────┐   ┌──────────────────────────────────────────┐
+         │        PostgreSQL DB       │   │             Redis                        │
+         │  • Normalized schema       │   │  • Caching (movies, genres, etc)         │
+         │  • Strong constraints      │   │  • Fast lookups for load‑heavy endpoints │
+         │  • Transactional integrity │   │  • Session / ephemeral data              │
+         └──────────────┬─────────────┘   └────────────────┬─────────────────────────┘
+                        │                                  │
+                        │                                  │
+                        ▼                                  ▼
+         ┌────────────────────────────┐   ┌────────────────────────────────────────┐
+         │        Celery Workers      │   │        Message Broker (Redis)          │
+         │  • Email sending           │   │  • Decouples API from long‑running jobs│
+         │  • Heavy computations      │   │  • Task queue transport                │
+         │  • Scheduled jobs (beat)   │   │  • Reliable async delivery             │
+         └────────────────────────────┘   └────────────────────────────────────────┘
+
+
+                    ┌───────────────────────────────────────────┐
+                    │        CI/CD Pipeline GitHub Actions      │
+                    │  • Automated tests (pytest + coverage)    │
+                    │  • Linting (Ruff,Mypy)                    │
+                    │  • Docker image build                     │
+                    │  • Deploy to server                       │
+                    └───────────────────────────────────────────┘
+
+```
+
+### Communication Model
+- **HTTP/HTTPS** → NGINX → FastAPI
+- **Async tasks** → Redis → Celery Worker
+- **Scheduled tasks** → Celery Beat → Redis → Worker
+- **Database operations** → FastAPI → PostgreSQL
+- **Media storage** → FastAPI → MinIO
+- **Email sending** → Celery → Mailhog
+
+### Scalability
+Each service can be scaled independently:
+- Add more FastAPI containers for higher API throughput
+- Add more Celery workers for heavy background load
+
+Use external managed services (AWS RDS, ElastiCache, S3) in production
+
+---
+
+### Core architectural principles
+- **Domain‑oriented design** — authentication, users, movies, notifications, storage, and background tasks are separated into clean domains.
+- **Async‑first stack** — FastAPI, async SQLAlchemy, async Redis, async S3 clients, async email sending.
+- **Task offloading** — Celery workers handle heavy or slow operations (email sending, media processing, analytics).
+- **Containerized multi‑service environment** — API, PostgreSQL, Redis, Celery, Flower, MinIO, MailHog all run in isolated Docker services.
+- **Strict typing & deterministic tooling** — mypy, Ruff, pytest, and pre‑commit enforce code quality at every step.
+- **CI‑driven development** — every push runs linting, formatting checks, type checks, tests, and coverage reporting.
+
+### High‑level architecture
+- **FastAPI application** — main entrypoint, routing, dependency injection, validation.
+- **SQLAlchemy 2.0 ORM** — async engine, models, migrations via Alembic.
+- **Redis** — caching, rate limiting, and Celery broker.
+- **Celery workers** — background jobs (email, media tasks).
+- **MinIO (S3‑compatible)** — object storage for images and media.
+- **MailHog** — local SMTP server for email testing.
+- **Docker Compose** — orchestrates all services for local development.
+- **Nginx reverse proxy** — acts as the public gateway.
+
+### Features
+This project already includes a rich set of real‑world backend features:
+
+#### Nginx Reverse Proxy
+- SSL/TLS termination
+- Reverse proxy routing
+- WebSocket upgrade support
+- Static file serving
+- HTTP request caching
+
+#### User & Auth
+- JWT‑based authentication (access + refresh tokens)
+- Registration, login, logout
+- Password hashing (bcrypt)
+- Email confirmation workflows
+- Password reset flows
+
+#### Movie Catalog
+- Movies, genres, directors, actors
+- Pagination, filtering, sorting
+- Likes, ratings, and user interactions
+- Admin‑friendly structure for future CMS integration
+
+#### Email Workflows
+- Domain‑specific email senders (Auth, Comments, etc.)
+- Templated emails via Jinja2
+- Async SMTP sending (aiosmtplib)
+- MailHog integration for local testing
+
+#### Background Tasks
+- Celery workers for async jobs
+- Redis broker + backend
+- Flower dashboard for monitoring
+
+#### Storage & Media
+- MinIO S3 bucket for media files
+- Async uploads and retrieval
+- Validation and processing hooks
+
+#### Quality & Tooling
+- Pre‑commit hooks (Ruff, mypy, pytest)
+- CI pipeline (linting, typing, tests, coverage)
+- Codecov integration
+- Strict typing across the codebase
+- Deterministic formatting and import sorting
+
+#### Developer Experience
+- Fully containerized environment
+- Local development with hot reload
+- Clear project structure
+- Reproducible builds via Poetry
+
+### Tech Stack
+#### Backend Framework
+- **FastAPI** — async, modern Python web framework
+- **Pydantic v2** — validation, settings management
+- **SQLAlchemy 2.0** — async ORM with modern query syntax
+
+#### Databases & Storage
+- **PostgreSQL** — relational database
+- **Redis** — caching, rate limiting, Celery broker
+- **MinIO** — S3‑compatible object storage
+
+#### Async & Background Processing
+- **Celery** — distributed task queue
+- **Flower** — task monitoring dashboard
+
+#### Email
+- **aiosmtplib** — async SMTP client
+- **MailHog** — local email testing
+- **Jinja2** — templated email rendering
+
+#### Tooling & Dev Experience
+- **Poetry** — dependency management
+- **Ruff** — linting + formatting
+- **mypy** — static typing
+- **pytest** — testing framework
+- **pytest‑cov** — coverage reporting
+- **pre‑commit** — automated code quality checks
+- **Docker Compose** — multi‑service orchestration
+
+
+#### CI/CD
+- **GitHub Actions** — CI pipeline (linting, typing, tests, coverage)
+- **Codecov** — coverage analytics and PR annotations
+
+## ⭐ Running the Project with Docker Compose
+The project includes a full Docker Compose setup that launches all required services for local development or demo environments. This setup ensures a consistent environment across machines and eliminates the need to install Postgres, MinIO, or Mailhog manually.
+
+### Services Included in docker-compose.yml
+
+| Service               | Responsibility                                               |
+| ----------------------| ------------------------------------------------------------ |
+| **FastAPI**           | Main backend API, authentication, business logic, WebSockets |
+| **PostgreSQL**        | Primary relational database storing all persistent data      |
+| **Redis**             | Celery broker, result backend, caching                       |
+| **MinIO**             | S3‑compatible object storage for user avatars and media      |
+| **NGINX**             | Reverse proxy, SSL termination, routing                      |
+| **Celery Worker**     | Background tasks (email sending, heavy jobs)                 |
+| **Celery Beat**       | Scheduled periodic tasks                                     |
+| **Flower**            | Monitoring dashboard for Celery                              |
+| **Mailhog**           | SMTP capture for development/testing                         |
+| **PgAdmin**           | Database administration UI                                   |
+| **Migrator**          | Runs Alembic migrations on startup                           |
+
+---
+
+### Environment Configuration
+All environment variables are loaded from `.env` using Pydantic Settings.
+
+Use `.env.sample` file to define `.env` variables.
+
+The seeding system also uses paths defined in `config.py`:
+```python
+CERT_JSON_PATH=src/seeding/seed_data/certifications.json
+MOVIE_JSON_PATH=src/seeding/seed_data/movies.json
+GENRE_JSON_PATH=src/seeding/seed_data/genres.json
+STARS_JSON_PATH=src/seeding/seed_data/stars.json
+DIRECTORS_JSON_PATH=src/seeding/seed_data/directors.json
+```
+These are generated automatically if missing.
+
+---
+
+### Starting the Entire Stack
+From the project root:
+```
+docker compose -f docker/docker-compose.yml up --build
+```
+This will:
+- Build the FastAPI application image
+- Start Postgres, Redis, MinIO, Mailhog
+- Start Celery worker and beat
+- Run the database seeding container
+- Launch the FastAPI server
+
+Once everything is up, the API is available at:
+```
+https://localhost:8089
+```
+
+Interactive docs:
+```
+https://localhost:8089/docs
+```
+
+---
+
+### Database Seeding on Startup
+The seeding container runs:
+```
+python src/seeding/populate_db.py
+```
+This script:
+- Generates JSON seed files if missing
+- Seeds user groups (`USER`, `MODERATOR`, `ADMIN`)
+- Loads certifications, genres, stars, directors, movies
+- Inserts associations (movie → genres, stars, directors)
+- Commits everything in a single transaction
+
+The seeding process is **idempotent** — running it multiple times will not duplicate data.
+
+---
+
+### Useful Docker Commands
+#### 1. Rebuild everything
+```
+docker compose up --build
+```
+
+#### 2. Run in detached mode
+```
+docker compose up -d
+```
+
+#### 3. Stop all services
+```
+docker compose down
+```
+
+#### 4. Remove volumes (reset database)
+```
+docker compose down -v
+```
+
+#### 5. View logs
+```
+docker compose logs -f
+```
+
+---
+
+### Development Workflow
+- Modify backend code → Docker automatically reloads if using bind mounts
+- Database changes → run migrations or reset with `down -v`
+- Seed data → automatically applied on first startup
+
+This setup ensures a smooth development experience without manual environment setup.
 
 ## ⭐ Build & Quality Status
 
@@ -120,129 +413,6 @@ Your CI pipeline ensures that every commit meets the same strict standards you e
 
 This creates a stable foundation for development and prevents regressions before they reach the main codebase.
 
-## ⭐ Architecture Overview
-The system follows a **modular**, **service‑oriented architecture** designed for clarity, scalability, and real‑world backend workflows.
-Each component is isolated, typed, and tested, with clear boundaries between domains.
-
-```
-Client (HTTPS / WSS)
-        ↓
-     Nginx
-  - SSL termination
-  - Reverse proxy
-  - WebSocket upgrade
-  - Caching
-  - Static files
-        ↓
-FastAPI (internal HTTP)
-        ↓
-PostgreSQL / Redis / Celery / MinIO
-```
-
-### Core architectural principles
-- **Domain‑oriented design** — authentication, users, movies, notifications, storage, and background tasks are separated into clean domains.
-- **Async‑first stack** — FastAPI, async SQLAlchemy, async Redis, async S3 clients, async email sending.
-- **Task offloading** — Celery workers handle heavy or slow operations (email sending, media processing, analytics).
-- **Containerized multi‑service environment** — API, PostgreSQL, Redis, Celery, Flower, MinIO, MailHog all run in isolated Docker services.
-- **Strict typing & deterministic tooling** — mypy, Ruff, pytest, and pre‑commit enforce code quality at every step.
-- **CI‑driven development** — every push runs linting, formatting checks, type checks, tests, and coverage reporting.
-
-### High‑level architecture
-- **FastAPI application** — main entrypoint, routing, dependency injection, validation.
-- **SQLAlchemy 2.0 ORM** — async engine, models, migrations via Alembic.
-- **Redis** — caching, rate limiting, and Celery broker.
-- **Celery workers** — background jobs (email, media tasks).
-- **MinIO (S3‑compatible)** — object storage for images and media.
-- **MailHog** — local SMTP server for email testing.
-- **Docker Compose** — orchestrates all services for local development.
-- **Nginx reverse proxy** — acts as the public gateway.
-
-### Features
-This project already includes a rich set of real‑world backend features:
-
-#### Nginx Reverse Proxy
-- SSL/TLS termination
-- Reverse proxy routing
-- WebSocket upgrade support
-- Static file serving
-- HTTP request caching
-
-#### User & Auth
-- JWT‑based authentication (access + refresh tokens)
-- Registration, login, logout
-- Password hashing (bcrypt)
-- Email confirmation workflows
-- Password reset flows
-
-#### Movie Catalog
-- Movies, genres, directors, actors
-- Pagination, filtering, sorting
-- Likes, ratings, and user interactions
-- Admin‑friendly structure for future CMS integration
-
-#### Email Workflows
-- Domain‑specific email senders (Auth, Comments, etc.)
-- Templated emails via Jinja2
-- Async SMTP sending (aiosmtplib)
-- MailHog integration for local testing
-
-#### Background Tasks
-- Celery workers for async jobs
-- Redis broker + backend
-- Flower dashboard for monitoring
-
-#### Storage & Media
-- MinIO S3 bucket for media files
-- Async uploads and retrieval
-- Validation and processing hooks
-
-#### Quality & Tooling
-- Pre‑commit hooks (Ruff, mypy, pytest)
-- CI pipeline (linting, typing, tests, coverage)
-- Codecov integration
-- Strict typing across the codebase
-- Deterministic formatting and import sorting
-
-#### Developer Experience
-- Fully containerized environment
-- Local development with hot reload
-- Clear project structure
-- Reproducible builds via Poetry
-
-### Tech Stack
-#### Backend Framework
-- **FastAPI** — async, modern Python web framework
-- **Pydantic v2** — validation, settings management
-- **SQLAlchemy 2.0** — async ORM with modern query syntax
-
-#### Databases & Storage
-- **PostgreSQL** — relational database
-- **Redis** — caching, rate limiting, Celery broker
-- **MinIO** — S3‑compatible object storage
-
-#### Async & Background Processing
-- **Celery** — distributed task queue
-- **Flower** — task monitoring dashboard
-
-#### Email
-- **aiosmtplib** — async SMTP client
-- **MailHog** — local email testing
-- **Jinja2** — templated email rendering
-
-#### Tooling & Dev Experience
-- **Poetry** — dependency management
-- **Ruff** — linting + formatting
-- **mypy** — static typing
-- **pytest** — testing framework
-- **pytest‑cov** — coverage reporting
-- **pre‑commit** — automated code quality checks
-- **Docker Compose** — multi‑service orchestration
-
-
-#### CI/CD
-- **GitHub Actions** — CI pipeline (linting, typing, tests, coverage)
-- **Codecov** — coverage analytics and PR annotations
-
 ## ⭐ Nginx Reverse Proxy & SSL Termination
 This project includes a full Nginx reverse proxy layer that sits in front of the FastAPI backend.
 Nginx is responsible for handling HTTPS, routing, caching, and WebSocket upgrades, while FastAPI runs as an internal service inside the Docker network.
@@ -260,7 +430,7 @@ Nginx acts as the public entrypoint to the application and provides several prod
 
 This architecture mirrors real‑world deployments where application servers (FastAPI/Uvicorn) are never exposed directly to the internet.
 
-![reverse_proxy_process](reverse_proxy_process.png)
+![reverse_proxy_process](docs/reverse_proxy_process.png)
 
 ---
 
@@ -311,7 +481,7 @@ wss://localhost:8443/api/v1/cinema/ws/comments?token=JWT
 ```
 This works seamlessly over HTTPS.
 
-![WebSocket Flow](websocket-handshake-flow.png)
+![WebSocket Flow](docs/websocket-handshake-flow.png)
 
 ---
 
@@ -357,14 +527,36 @@ wss://localhost:8443/api/v1/cinema/ws/comments?token=JWT
 http://localhost:8080
 ```
 
+## ⭐ Database Schema Diagram
+
+You can view the full ERD here:
+[Online Cinema](docs/online-cinema-db.png)
+
 ## ⭐ Authentication System
 The authentication subsystem provides a complete, secure, and production‑ready identity flow for the Online Cinema platform. It includes user onboarding, JWT‑based authentication, role‑based access control, and asynchronous email notifications.
+
+### Directory Structure:
+```
+auth/
+│
+├── router.py
+├── interfaces.py
+├── token_manager.py
+├── dependencies.py
+├── service.py
+├── repository.py
+├── exceptions.py
+├── utils.py
+├── validators.py
+├── schemas.py
+└── models.py
+```
 
 ### Features Overview
 The Auth app handles:
 - User registration
 - Email activation (activation token + Celery email)
-- Login (JWT access + refresh tokens)
+- Login (JWT access + opaque DB-backed refresh tokens)
 - Refresh token rotation
 - Logout (refresh token invalidation)
 - Password reset (request + complete)
@@ -394,15 +586,15 @@ This keeps the authentication domain cohesive and avoids fragmentation.
 
 ---
 
-### JWT Authentication
+### Authentication
 The system uses a two‑token strategy:
-#### Access Token
+#### JWT Access Token
 - Short‑lived
 - Encodes user ID, token type, and expiration
 - Used for authenticating API requests
 - Verified using get_current_user
 
-#### Refresh Token
+#### Opaque Refresh Token
 - Long‑lived
 - Stored in the database
 - Rotated on each refresh
@@ -454,7 +646,6 @@ bearer_scheme = HTTPBearer()
 ```
 This provides:
 - Clean Swagger UI (“Bearer Token” input)
-- No OAuth2 password flow confusion
 - Simple extraction of `Authorization: Bearer <token>`
 
 #### `get_current_user` Flow
@@ -533,7 +724,7 @@ POST /api/v1/cinema/auth/logout
 The authentication subsystem is:
 - Modular
 - Secure
-- JWT‑based
+- JWT‑based for access & opaque token for refresh
 - Role‑aware
 - Asynchronous
 - Swagger‑friendly
@@ -2363,132 +2554,3 @@ Start the test and monitor:
 ### Conclusion
 This Locust suite is a core validation tool proving that the Online Cinema backend is engineered for real-world scale.
 By combining async FastAPI, PostgreSQL UPSERTs, Redis caching, and multi-worker Uvicorn, the system demonstrates production-grade performance and concurrency safety under realistic load.
-
-
-## ⭐ Running the Project with Docker Compose
-The project includes a full Docker Compose setup that launches all required services for local development or demo environments. This setup ensures a consistent environment across machines and eliminates the need to install Postgres, MinIO, or Mailhog manually.
-
-### Services Included in docker-compose.yml
-The Compose stack typically includes:
-
-#### 1. FastAPI application  
-Runs the backend server with all API routes, WebSocket notifications, RBAC, admin console, and business logic.
-
-#### 2. PostgreSQL database  
-Stores all application data: users, profiles, movies, ratings, likes, favorites, comments, and RBAC groups.
-
-#### 3. MinIO (S3-compatible storage)  
-Used for storing user avatars and other media assets.
-
-#### 4. Mailhog  
-Captures outgoing emails (activation, password reset) for local testing.
-
-#### 5. Celery worker + Celery beat  
-Handles background tasks such as sending emails.
-
-#### 6. Redis  
-Used as the Celery broker and result backend.
-
-#### 7. Database seeding container  
-Automatically generates JSON seed files and populates the database with:
-- User groups (`USER`, `MODERATOR`, `ADMIN`)
-- Certifications
-- Genres
-- Stars
-- Directors
-- Movies
-- Movie associations (genres, stars, directors)
-
----
-
-### Environment Configuration
-All environment variables are loaded from `.env` using Pydantic Settings.
-
-Use `.env.sample` file to define `.env` variables.
-
-The seeding system also uses paths defined in config.py:
-```python
-CERT_JSON_PATH=src/seeding/seed_data/certifications.json
-MOVIE_JSON_PATH=src/seeding/seed_data/movies.json
-GENRE_JSON_PATH=src/seeding/seed_data/genres.json
-STARS_JSON_PATH=src/seeding/seed_data/stars.json
-DIRECTORS_JSON_PATH=src/seeding/seed_data/directors.json
-```
-These are generated automatically if missing.
-
----
-
-### Starting the Entire Stack
-From the project root:
-```
-docker compose up --build
-```
-This will:
-- Build the FastAPI application image
-- Start Postgres, Redis, MinIO, Mailhog
-- Start Celery worker and beat
-- Run the database seeding container
-- Launch the FastAPI server
-
-Once everything is up, the API is available at:
-```
-http://localhost:8000
-```
-
-Interactive docs:
-```
-http://localhost:8000/docs
-```
-
----
-
-### Database Seeding on Startup
-The seeding container runs:
-```
-python src/seeding/populate_db.py
-```
-This script:
-- Generates JSON seed files if missing
-- Seeds user groups (`USER`, `MODERATOR`, `ADMIN`)
-- Loads certifications, genres, stars, directors, movies
-- Inserts associations (movie → genres, stars, directors)
-- Commits everything in a single transaction
-
-The seeding process is **idempotent** — running it multiple times will not duplicate data.
-
----
-
-### Useful Docker Commands
-#### 1. Rebuild everything
-```
-docker compose up --build
-```
-
-#### 2. Run in detached mode
-```
-docker compose up -d
-```
-
-#### 3. Stop all services
-```
-docker compose down
-```
-
-#### 4. Remove volumes (reset database)
-```
-docker compose down -v
-```
-
-#### 5. View logs
-```
-docker compose logs -f
-```
-
----
-
-### Development Workflow
-- Modify backend code → Docker automatically reloads if using bind mounts
-- Database changes → run migrations or reset with `down -v`
-- Seed data → automatically applied on first startup
-
-This setup ensures a smooth development experience without manual environment setup.
