@@ -439,17 +439,24 @@ This architecture mirrors real‑world deployments where application servers (Fa
 ---
 
 ### SSL/TLS Termination
-Nginx handles all HTTPS traffic using a certificate/key pair stored in:
+Nginx handles all HTTPS traffic using a self‑signed certificate generated at Docker **build time** — it is never committed to the repository.
+The certificate is created inside `docker/Dockerfile.nginx` via an `openssl` `RUN` step and lives only inside the built image at `/etc/nginx/certs/`.
+
+In development, a self‑signed certificate is expected to trigger a browser warning ("Your connection is not private").
+Click **Advanced → Proceed to localhost** to continue — the connection is still encrypted, the warning is only about identity verification by a CA.
+In production, replace it with a real certificate (e.g., via Let’s Encrypt) by swapping the `RUN` step for a `COPY` of your signed cert and key.
+
+TLS is hardened to modern standards:
+```nginx
+ssl_protocols       TLSv1.2 TLSv1.3;
+ssl_ciphers         HIGH:!aNULL:!MD5;
+ssl_session_cache   shared:SSL:10m;
+ssl_session_timeout 10m;
 ```
-nginx/certs/selfsigned.crt
-nginx/certs/selfsigned.key
-```
-In development, the project uses a self‑signed certificate, which is expected to trigger a browser warning.
-In production, this can be replaced with a real certificate (e.g., via Let’s Encrypt).
 
 #### Flow:
 ```
-Client (HTTPS) → Nginx → FastAPI (HTTP, internal only)
+Client (HTTPS) → Nginx (TLS termination) → FastAPI (HTTP, internal Docker network only)
 ```
 FastAPI never deals with TLS — Nginx decrypts incoming traffic and forwards plain HTTP to the backend.
 
@@ -468,22 +475,41 @@ upstream fastapi_backend {
 ```
 ensures that Nginx communicates with FastAPI inside the Docker network, not through exposed host ports.
 
+Nginx forwards the real client context on every proxied request so FastAPI sees accurate IPs and scheme (needed for rate limiting, audit logs, and scheme‑aware redirect URLs):
+```nginx
+proxy_set_header Host              $host;
+proxy_set_header X-Real-IP         $remote_addr;
+proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+```
+
 ---
 
 ### WebSocket Support
 Real‑time comment notifications use WebSockets.
-Nginx is configured to support WebSocket upgrades:
+Nginx is configured to support WebSocket upgrades and forwards the real client context to FastAPI:
 ```nginx
 proxy_http_version 1.1;
-proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Upgrade    $http_upgrade;
 proxy_set_header Connection "upgrade";
+
+proxy_set_header Host              $host;
+proxy_set_header X-Real-IP         $remote_addr;
+proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+
+proxy_read_timeout 86400;
+proxy_send_timeout 86400;
 proxy_buffering off;
 ```
+`proxy_http_version 1.1` is required — the default HTTP/1.0 cannot carry the `Upgrade` mechanism.
+The 24‑hour read/send timeouts prevent Nginx from killing idle but live WebSocket connections.
+`proxy_buffering off` ensures frames are streamed to the client immediately.
+
 WebSocket endpoint:
 ```
 wss://localhost:8443/api/v1/cinema/ws/comments?token=JWT
 ```
-This works seamlessly over HTTPS.
 
 ![WebSocket Flow](docs/websocket-handshake-flow.png)
 
@@ -501,12 +527,15 @@ This offloads static content from FastAPI and improves performance.
 ---
 
 ### Request Caching
-Nginx caches GET responses for 10 seconds:
+Nginx caches GET responses for 10 seconds to reduce backend load and speed up repeated requests.
+Authenticated requests are explicitly excluded to prevent one user's private response from being served to another:
 ```nginx
-proxy_cache fastapi_cache;
-proxy_cache_valid 200 10s;
+proxy_cache        fastapi_cache;
+proxy_cache_valid  200 10s;
+proxy_cache_bypass $http_authorization;
+proxy_no_cache     $http_authorization;
 ```
-This reduces load on the backend and speeds up repeated requests.
+When an `Authorization` header is present, `proxy_cache_bypass` forces a fresh backend fetch and `proxy_no_cache` discards the response without storing it.
 
 ---
 
@@ -526,7 +555,7 @@ https://localhost:8443/api/v1/cinema/...
 wss://localhost:8443/api/v1/cinema/ws/comments?token=JWT
 ```
 
-#### HTTP (redirects to HTTPS)
+#### HTTP (redirects to HTTPS on port 8443)
 ```
 http://localhost:8080
 ```
