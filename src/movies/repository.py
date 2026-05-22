@@ -461,7 +461,7 @@ class MovieRepository:
         await self.db.flush()
         return comment
 
-    async def get_comments_for_movie(
+    async def get_comments_for_movie(  # fix with recursive CTE query
         self, movie_id: int
     ) -> list[MovieComment]:
         """Retrieve a list of comments for a specific movie.

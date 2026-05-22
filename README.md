@@ -241,13 +241,17 @@ This will:
 
 Once everything is up, the API is available at:
 ```
-https://localhost:8089
+https://localhost:8443/docs
 ```
+The browser can't verify the self-signed cert against a trusted Certificate Authority, so it shows the warning.
 
-Interactive docs:
-```
-https://localhost:8089/docs
-```
+To proceed past it in Chrome/Edge:
+- Click Advanced → Proceed to localhost (unsafe)
+
+In Firefox:
+- Click Advanced → Accept the Risk and Continue
+
+This warning is normal for any dev/local setup using a self-signed cert.
 
 ---
 
