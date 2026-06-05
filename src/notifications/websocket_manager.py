@@ -1,4 +1,4 @@
-from fastapi import WebSocket
+from fastapi import WebSocket, WebSocketDisconnect
 
 from logger_config import get_logger
 from notifications.interfaces import WebSocketConnectionManagerInterface
@@ -55,8 +55,14 @@ class ConnectionManager(WebSocketConnectionManagerInterface):
             log.warning(f"User {user_id} not connected")
             return
         log.info(f"Sending message to user ID: {user_id}")
+        dead: list[WebSocket] = []
         for ws in self.active_connections[user_id]:
-            await ws.send_json(message)
+            try:
+                await ws.send_json(message)
+            except (WebSocketDisconnect, RuntimeError):
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect(user_id, ws)
 
 
 manager = ConnectionManager()
