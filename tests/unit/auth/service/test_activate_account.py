@@ -39,7 +39,7 @@ async def test_activate_account_invalid_token(monkeypatch):
 
     # Act + Assert
     with pytest.raises(HTTPException) as exc:
-        await service.activate_account(data)
+        await service.activate_account(data, MagicMock())
 
     assert exc.value.status_code == 400
     fake_delay.assert_not_called()
@@ -85,7 +85,7 @@ async def test_activate_account_expired_token(monkeypatch):
 
     # Act + Assert
     with pytest.raises(HTTPException) as exc:
-        await service.activate_account(data)
+        await service.activate_account(data, MagicMock())
 
     assert exc.value.status_code == 400
     mock_repo.delete_activation_token.assert_called_once_with(expired_token)
@@ -131,7 +131,7 @@ async def test_activate_account_already_active(monkeypatch):
 
     # Act + Assert
     with pytest.raises(HTTPException) as exc:
-        await service.activate_account(data)
+        await service.activate_account(data, MagicMock())
 
     assert exc.value.status_code == 400
     fake_delay.assert_not_called()
@@ -178,7 +178,7 @@ async def test_activate_account_success(monkeypatch):
     )
 
     # Act
-    response = await service.activate_account(data)
+    response = await service.activate_account(data, MagicMock())
 
     # Assert
     assert response.message == "Account activated successfully."

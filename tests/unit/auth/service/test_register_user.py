@@ -43,7 +43,7 @@ async def test_register_user_success(monkeypatch):
     )
 
     # act
-    user = await service.register_user(data)
+    user = await service.register_user(data, MagicMock())
 
     # assert
     assert isinstance(user, User)
@@ -80,7 +80,7 @@ async def test_register_user_email_exists(monkeypatch):
 
     # act + assert
     with pytest.raises(HTTPException) as exc:
-        await service.register_user(data)
+        await service.register_user(data, MagicMock())
 
     assert exc.value.status_code == 409
     mock_repo.add.assert_not_called()
@@ -117,7 +117,7 @@ async def test_register_user_default_group_missing(monkeypatch):
 
     # act + assert
     with pytest.raises(HTTPException) as exc:
-        await service.register_user(data)
+        await service.register_user(data, MagicMock())
 
     assert exc.value.status_code == 500
     mock_repo.add.assert_not_called()
@@ -158,7 +158,7 @@ async def test_register_user_sqlalchemy_error(monkeypatch):
 
     # act + assert
     with pytest.raises(HTTPException) as exc:
-        await service.register_user(data)
+        await service.register_user(data, MagicMock())
 
     assert exc.value.status_code == 500
     mock_repo.rollback.assert_called_once()

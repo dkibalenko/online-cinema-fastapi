@@ -40,7 +40,7 @@ async def test_resend_activation_user_not_found(monkeypatch):
     data = ResendActivationRequestSchema(email="missing@example.com")
 
     with pytest.raises(HTTPException) as exc:
-        await service.resend_activation_token(data)
+        await service.resend_activation_token(data, MagicMock())
 
     assert exc.value.status_code == 404
     fake_delay.assert_not_called()
@@ -73,7 +73,7 @@ async def test_resend_activation_user_already_active(monkeypatch):
     data = ResendActivationRequestSchema(email="active@example.com")
 
     with pytest.raises(HTTPException) as exc:
-        await service.resend_activation_token(data)
+        await service.resend_activation_token(data, MagicMock())
 
     assert exc.value.status_code == 400
     fake_delay.assert_not_called()
@@ -114,7 +114,7 @@ async def test_resend_activation_deletes_old_token(monkeypatch):
 
     data = ResendActivationRequestSchema(email="user@example.com")
 
-    response = await service.resend_activation_token(data)
+    response = await service.resend_activation_token(data, MagicMock())
 
     assert response.message == "A new activation link has been sent to your email."
     mock_repo.delete_activation_token.assert_called_once_with(old_token)
@@ -156,7 +156,7 @@ async def test_resend_activation_success(monkeypatch):
 
     data = ResendActivationRequestSchema(email="user@example.com")
 
-    response = await service.resend_activation_token(data)
+    response = await service.resend_activation_token(data, MagicMock())
 
     assert response.message == "A new activation link has been sent to your email."
     mock_repo.add.assert_called_once()
@@ -190,7 +190,7 @@ async def test_resend_activation_sqlalchemy_error(monkeypatch):
     data = ResendActivationRequestSchema(email="user@example.com")
 
     with pytest.raises(HTTPException) as exc:
-        await service.resend_activation_token(data)
+        await service.resend_activation_token(data, MagicMock())
 
     assert exc.value.status_code == 500
     fake_delay.assert_not_called()
