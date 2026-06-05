@@ -364,7 +364,8 @@ class UserService:
 
         # 3. Delete avatar from S3
         try:
-            await self.s3_client.delete_file(profile.avatar)
+            if profile.avatar:
+                await self.s3_client.delete_file(profile.avatar)
         except S3ConnectionError:
             log.warning(
                 f"Failed to connect to S3 while deleting avatar: "

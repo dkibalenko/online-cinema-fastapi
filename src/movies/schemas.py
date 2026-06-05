@@ -140,12 +140,12 @@ class MovieFilterParams(BaseModel):
 
 
 class MovieSortParams(BaseModel):
-    sort_by: str | None = Field(
+    sort_by: str = Field(
         "id",
         pattern="^(id|name|year|imdb|votes|price)$",
         description="Field to sort by",
     )
-    order: str | None = Field(
+    order: str = Field(
         "desc", pattern="^(asc|desc)$", description="Sort order: asc or desc"
     )
 
