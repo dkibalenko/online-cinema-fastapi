@@ -17,6 +17,7 @@ class BaseAppSettings(BaseSettings):
     }
 
     BASE_DIR: Path = Path(__file__).parent
+    BASE_URL: str = "http://localhost:8000"
 
     # Safe defaults
     CERT_JSON_PATH: str = str(
