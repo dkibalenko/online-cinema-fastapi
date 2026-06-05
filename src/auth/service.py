@@ -479,7 +479,7 @@ class AuthService:
             await self.auth.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=str(error),
+                detail="An unexpected error occurred.",
             ) from error
 
         reset_password_link = (
@@ -607,7 +607,7 @@ class AuthService:
             await self.auth.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=str(error),
+                detail="An unexpected error occurred.",
             ) from error
 
         log.info("Password changed successfully")
