@@ -45,6 +45,7 @@ async def register_user(
     request: Request,
     user_data: UserRegistrationRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)],
+    settings: Annotated[BaseAppSettings, Depends(get_settings)],
 ) -> UserRegistrationResponseSchema:
     """Registers a new user and sends an activation email.
 
@@ -53,6 +54,7 @@ async def register_user(
         user_data (UserRegistrationRequestSchema): The registration data
             containing the user's email and password.
         auth (AuthService): The authentication service.
+        settings (BaseAppSettings): The application settings.
 
     Returns:
         UserRegistrationResponseSchema: A response containing a success
@@ -62,7 +64,7 @@ async def register_user(
         HTTPException: If the email is already registered or the input data
         is invalid.
     """
-    return await auth.register_user(user_data)
+    return await auth.register_user(user_data, settings)
 
 
 @router.post(  # for a clickable activation link we need GET /activate?token=..
@@ -80,6 +82,7 @@ async def register_user(
 async def activate_account(
     activation_data: UserActivationRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)],
+    settings: Annotated[BaseAppSettings, Depends(get_settings)],
 ) -> MessageResponseSchema:
     # user must POST email + token manually
     """Activates a user account based on the activation token.
@@ -88,6 +91,7 @@ async def activate_account(
         activation_data (UserActivationRequestSchema): The activation data
             containing the user's email and activation token.
         auth (AuthService): The authentication service.
+        settings (BaseAppSettings): The application settings.
 
     Returns:
         MessageResponseSchema: A response containing a success message.
@@ -96,7 +100,7 @@ async def activate_account(
         HTTPException: If the activation token is invalid or expired, or
             if the user account is already active.
     """
-    return await auth.activate_account(activation_data)
+    return await auth.activate_account(activation_data, settings)
 
 
 @router.post(
@@ -118,6 +122,7 @@ async def resend_activation(
     request: Request,
     data: ResendActivationRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)],
+    settings: Annotated[BaseAppSettings, Depends(get_settings)],
 ) -> MessageResponseSchema:
     """Resends the activation token to the user's email address.
 
@@ -126,6 +131,7 @@ async def resend_activation(
         data (ResendActivationRequestSchema): The email address of the user to
             send the activation token to.
         auth (AuthService): The authentication service.
+        settings (BaseAppSettings): The application settings.
 
     Returns:
         MessageResponseSchema: A response containing a success message.
@@ -134,7 +140,7 @@ async def resend_activation(
         HTTPException: If the email is invalid.
         HTTPException: If the user is not found.
     """
-    return await auth.resend_activation_token(data)
+    return await auth.resend_activation_token(data, settings)
 
 
 @router.post(
@@ -271,6 +277,7 @@ async def request_password_reset_token(
     request: Request,
     data: PasswordResetRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)],
+    settings: Annotated[BaseAppSettings, Depends(get_settings)],
 ) -> MessageResponseSchema:
     """Sends a password reset token to the user's email address.
 
@@ -279,6 +286,7 @@ async def request_password_reset_token(
         data (PasswordResetRequestSchema): The email address of the user to
         send the password reset token to.
         auth (AuthService): The authentication service.
+        settings (BaseAppSettings): The application settings.
 
     Returns:
         MessageResponseSchema: A response containing a success message.
@@ -286,7 +294,7 @@ async def request_password_reset_token(
     Raises:
         HTTPException: If the email is invalid.
     """
-    return await auth.request_password_reset(data)
+    return await auth.request_password_reset(data, settings)
 
 
 @router.post(
@@ -304,6 +312,7 @@ async def request_password_reset_token(
 async def complete_password_reset(
     data: PasswordResetCompleteRequestSchema,
     auth: Annotated[AuthService, Depends(get_auth_service)],
+    settings: Annotated[BaseAppSettings, Depends(get_settings)],
 ) -> MessageResponseSchema:
     """Resets the user's password using a password reset token.
 
@@ -311,6 +320,7 @@ async def complete_password_reset(
         data (PasswordResetCompleteRequestSchema): The password reset
             complete request data containing the reset token and new password.
         auth (AuthService): The authentication service.
+        settings (BaseAppSettings): The application settings.
 
     Returns:
         MessageResponseSchema: A response containing a success message.
@@ -322,7 +332,7 @@ async def complete_password_reset(
         HTTPException: If the password update fails due to a security
             error.
     """
-    return await auth.reset_password(data)
+    return await auth.reset_password(data, settings)
 
 
 @router.post(
