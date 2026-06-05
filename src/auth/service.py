@@ -47,7 +47,9 @@ class AuthService:
         self.email_sender = email_sender
 
     async def register_user(
-        self, user_data: UserRegistrationRequestSchema
+        self,
+        user_data: UserRegistrationRequestSchema,
+        settings: BaseAppSettings,
     ) -> User:
         """Registers a new user based on the provided registration data.
 
@@ -113,7 +115,7 @@ class AuthService:
         # f"{settings.FRONTEND_URL}/activate?token={token.token}"
         # )
         activation_link = (
-            f"http://127.0.0.1:8000/api/v1/cinema/auth/activate?"
+            f"{settings.BASE_URL}/api/v1/cinema/auth/activate?"
             f"token={token.token}"
         )
 
@@ -127,6 +129,7 @@ class AuthService:
     async def activate_account(
         self,
         activation_data: UserActivationRequestSchema,
+        settings: BaseAppSettings,
     ) -> MessageResponseSchema:
         """Activate a user account based on the activation token.
 
@@ -176,7 +179,7 @@ class AuthService:
         await self.auth.commit()
 
         # 5. Send confirmation email
-        login_link = "http://127.0.0.1:8000/api/v1/cinema/auth/login"
+        login_link = f"{settings.BASE_URL}/api/v1/cinema/auth/login"
 
         # 6. enqueue celery task
         send_activation_complete_email.delay(str(user.email), login_link)
@@ -186,7 +189,9 @@ class AuthService:
         return MessageResponseSchema(message="Account activated successfully.")
 
     async def resend_activation_token(
-        self, email_data: ResendActivationRequestSchema
+        self,
+        email_data: ResendActivationRequestSchema,
+        settings: BaseAppSettings,
     ) -> MessageResponseSchema:
         """Resends an activation token for a user based on their email.
 
@@ -243,7 +248,7 @@ class AuthService:
 
         # Send email
         activation_link = (
-            f"http://127.0.0.1:8000/api/v1/cinema/auth/activate?"
+            f"{settings.BASE_URL}/api/v1/cinema/auth/activate?"
             f"token={new_token.token}"
         )
 
@@ -428,7 +433,7 @@ class AuthService:
         return MessageResponseSchema(message="Logged out successfully.")
 
     async def request_password_reset(
-        self, data: PasswordResetRequestSchema
+        self, data: PasswordResetRequestSchema, settings: BaseAppSettings,
     ) -> MessageResponseSchema:
         """Requests a password reset for a user with the given email.
 
@@ -478,7 +483,7 @@ class AuthService:
             ) from error
 
         reset_password_link = (
-            f"http://127.0.0.1:8000/api/v1/cinema/auth/reset-password/"
+            f"{settings.BASE_URL}/api/v1/cinema/auth/reset-password/"
             f"complete?token={reset_token.token}"
         )
 
@@ -494,7 +499,9 @@ class AuthService:
         )
 
     async def reset_password(
-        self, data: PasswordResetCompleteRequestSchema
+        self,
+        data: PasswordResetCompleteRequestSchema,
+        settings: BaseAppSettings,
     ) -> MessageResponseSchema:
         """Resets the password for a user with the given reset token.
 
@@ -556,7 +563,7 @@ class AuthService:
             ) from error
 
         # 6. Send confirmation email
-        login_link = "http://127.0.0.1:8000/api/v1/cinema/auth/login"
+        login_link = f"{settings.BASE_URL}/api/v1/cinema/auth/login"
 
         # enqueue password reset email
         send_password_reset_complete_email.delay(user.email, login_link)
