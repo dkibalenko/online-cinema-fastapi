@@ -564,45 +564,8 @@ class MovieReactionService:
         log.info(
             f"Fetching movie reactions | user_id={user_id} movie_id={movie_id}"
         )
-
-        cache_key = f"movie:{movie_id}:reactions:user:{user_id}"
-        if self.enable_cache:
-            cached = await self.cache.get(cache_key)
-            if cached:
-                return MovieReactionSummarySchema(**cached)
-
-        movie = await self.repo.get_movie_basic(movie_id)
-        if not movie:
-            log.warning(f"Movie not found for reaction | movie_id={movie_id}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Movie with ID {movie_id} not found.",
-            )
-
-        likes, dislikes = await self.repo.get_movie_reaction_counts(movie_id)
-        user_reaction = await self.repo.get_user_movie_reaction(
-            user_id, movie_id
-        )
-
-        if user_reaction is True:
-            reaction = "like"
-        elif user_reaction is False:
-            reaction = "dislike"
-        else:
-            reaction = None
-
-        result = MovieReactionSummarySchema(
-            movie_id=movie_id,
-            likes=likes,
-            dislikes=dislikes,
-            user_reaction=reaction,
-        )
-
-        # short TTL because reactions change often
-        if self.enable_cache:
-            await self.cache.set(cache_key, result.model_dump(), ttl=60)
-
-        return result
+        await self._ensure_movie_exists(movie_id)
+        return await self._build_reaction_summary(user_id, movie_id)
 
     async def rate_movie(
         self, user_id: int, movie_id: int, payload: MovieRatingCreateSchema
