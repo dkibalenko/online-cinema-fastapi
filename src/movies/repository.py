@@ -408,21 +408,17 @@ class MovieRepository(BaseRepository):
         await self.db.flush()
         return comment
 
-    async def get_comments_for_movie(  # fix with recursive CTE query
-        self, movie_id: int
-    ) -> list[MovieComment]:
-        """Retrieve a list of comments for a specific movie.
+    def get_comments_query(self, movie_id: int) -> Select:
+        """Return a query for paginated comments for a specific movie.
 
         :param movie_id: The ID of the movie to retrieve comments for.
-        :return: A list of comments for the movie.
+        :return: A SQLAlchemy Select query.
         """
-        stmt = (
+        return (
             select(MovieComment)
             .where(MovieComment.movie_id == movie_id)
             .order_by(MovieComment.created_at.asc())
         )
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
 
     async def get_comment_by_id(self, comment_id: int) -> MovieComment | None:
         """Retrieve a comment by its ID.

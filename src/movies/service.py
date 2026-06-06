@@ -886,14 +886,14 @@ class MovieCommentService:
 
         return CommentSchema.model_validate(comment)
 
-    async def list_comments(self, movie_id: int) -> list[CommentSchema]:
+    async def list_comments(self, movie_id: int) -> Page[CommentSchema]:
         """List comments for a specific movie.
 
         Args:
             movie_id (int): ID of the movie to list comments for.
 
         Returns:
-            list[CommentSchema]: A list of comments for the movie.
+            Page[CommentSchema]: A paginated list of comments for the movie.
 
         Raises:
             HTTPException: If the movie is not found.
@@ -908,6 +908,5 @@ class MovieCommentService:
                 detail=f"Movie with ID {movie_id} not found.",
             )
 
-        comments = await self.repo.get_comments_for_movie(movie_id)
-
-        return [CommentSchema.model_validate(c) for c in comments]
+        stmt = self.repo.get_comments_query(movie_id)
+        return await paginate(self.repo.db, stmt)
