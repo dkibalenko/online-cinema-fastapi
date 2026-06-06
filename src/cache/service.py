@@ -28,7 +28,7 @@ class CacheService:
     async def set(self, key: str, value: dict, ttl: int = 300):
         """Sets a value in the cache with the given key and TTL (in seconds).
 
-        Uses Pydantic's JSON encoder to serialize the value.
+        Uses pydantic_core.to_json to serialize the value.
 
         :param key: The key to set
         :param value: The value to set, a dict

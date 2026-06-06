@@ -68,9 +68,7 @@ class MovieRepository(BaseRepository):
         result = await self.db.execute(
             select(Movie).where(Movie.id == movie_id)
         )
-        return (
-            result.unique().scalar_one_or_none()
-        )  # for joinedload/selectinload
+        return result.scalar_one_or_none()
 
     async def get_movie_by_name_year(
         self, name: str, year: int
