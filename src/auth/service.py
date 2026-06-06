@@ -209,34 +209,32 @@ class AuthService:
         """
         log.info(f"Resend activation attempt for {email_data.email}")
 
-        user = None
         try:
-            async with self.auth.db.begin():
-                user = await self.auth.get_user_by_email(email_data.email)
+            user = await self.auth.get_user_by_email(email_data.email)
 
-                if not user:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="User not found.",
-                    )
-
-                if user.is_active:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="User account is already active.",
-                    )
-
-                # Delete old token if exists + create new
-                old_token = await self.auth.get_activation_token_by_user_id(
-                    user.id
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found.",
                 )
 
-                if old_token:
-                    await self.auth.delete_activation_token(old_token)
+            if user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="User account is already active.",
+                )
 
-                new_token = ActivationToken(user_id=user.id)
-                self.auth.add(new_token)
+            old_token = await self.auth.get_activation_token_by_user_id(user.id)
+            if old_token:
+                await self.auth.delete_activation_token(old_token)
+
+            new_token = ActivationToken(user_id=user.id)
+            self.auth.add(new_token)
+            await self.auth.commit()
+        except HTTPException:
+            raise
         except SQLAlchemyError as error:
+            await self.auth.rollback()
             log.error(
                 f"Error during resend activation token creation for "
                 f"{email_data.email}: {error}"
