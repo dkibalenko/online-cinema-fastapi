@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -28,7 +28,7 @@ class DirectorSchema(BaseSchema):
 
 class MovieBaseSchema(BaseModel):
     name: str = Field(..., max_length=255)
-    year: int = Field(..., ge=1900, le=2026, description="Release year")
+    year: int = Field(..., ge=1900, le=date.today().year, description="Release year")
     time: int = Field(..., description="Duration in minutes")
     imdb: float = Field(..., ge=0, le=10)
     votes: int = Field(..., ge=0, description="Number of votes on IMDb")
@@ -106,7 +106,7 @@ class MovieCreateSchema(MovieBaseSchema):
 
 class MovieUpdateSchema(BaseModel):
     name: str | None = Field(None, max_length=255)
-    year: int | None = Field(None, ge=1900, le=2026)
+    year: int | None = Field(None, ge=1900, le=date.today().year)
     time: int | None = Field(None, description="Duration in minutes")
     imdb: float | None = Field(None, ge=0, le=10)
     votes: int | None = Field(None, ge=0)
