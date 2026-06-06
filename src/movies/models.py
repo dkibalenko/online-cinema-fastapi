@@ -210,7 +210,7 @@ class MovieLike(Base):
     is_like: Mapped[bool] = mapped_column(Boolean, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
         nullable=False,
     )
     movie: Mapped[Movie] = relationship("Movie", back_populates="likes")
@@ -240,7 +240,7 @@ class MovieRating(Base):
     rating: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
         nullable=False,
     )
 
@@ -270,7 +270,7 @@ class FavoriteMovie(Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
         nullable=False,
     )
 
