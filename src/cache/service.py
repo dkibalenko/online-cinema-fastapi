@@ -1,7 +1,7 @@
 import asyncio
 import json
 
-from pydantic.json import pydantic_encoder
+from pydantic_core import to_json
 from redis.asyncio import Redis
 
 
@@ -35,8 +35,7 @@ class CacheService:
         :param ttl: The time to live for the key (in seconds), defaults to 300
         :return: None
         """
-        json_value = json.dumps(value, default=pydantic_encoder)
-        await self.redis.set(key, json_value, ex=ttl)
+        await self.redis.set(key, to_json(value), ex=ttl)
 
     async def delete(self, key: str) -> None:
         """Delete the given key from the cache.
