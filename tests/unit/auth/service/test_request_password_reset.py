@@ -25,7 +25,7 @@ async def test_password_reset_user_not_found():
 
     data = PasswordResetRequestSchema(email="missing@example.com")
 
-    response = await service.request_password_reset(data)
+    response = await service.request_password_reset(data, MagicMock())
 
     assert response.message == "If this email is registered, a reset link has been sent."
 
@@ -47,7 +47,7 @@ async def test_password_reset_user_inactive():
 
     data = PasswordResetRequestSchema(email=user.email)
 
-    response = await service.request_password_reset(data)
+    response = await service.request_password_reset(data, MagicMock())
 
     assert response.message == "If this email is registered, a reset link has been sent."
 
@@ -82,7 +82,7 @@ async def test_password_reset_old_token_deleted(monkeypatch):
 
     data = PasswordResetRequestSchema(email=user.email)
 
-    response = await service.request_password_reset(data)
+    response = await service.request_password_reset(data, MagicMock())
 
     mock_repo.delete_password_reset_token.assert_called_once_with(old_token)
     mock_repo.add.assert_called_once()
@@ -122,7 +122,7 @@ async def test_password_reset_db_error(monkeypatch):
     data = PasswordResetRequestSchema(email=user.email)
 
     with pytest.raises(HTTPException) as exc:
-        await service.request_password_reset(data)
+        await service.request_password_reset(data, MagicMock())
 
     assert exc.value.status_code == 500
     mock_repo.rollback.assert_called_once()

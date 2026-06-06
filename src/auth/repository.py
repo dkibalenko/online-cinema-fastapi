@@ -1,19 +1,18 @@
-from typing import Any
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from auth.models import ActivationToken, PasswordResetToken, RefreshToken
+from base_repository import BaseRepository
 from users.enums import UserGroupEnum
 from users.models import User, UserGroup
 
 
-class AuthRepository:  # rename to AuthRepository
+class AuthRepository(BaseRepository):
     """Repository for user-related database operations."""
 
     def __init__(self, db: AsyncSession):
-        self.db = db
+        super().__init__(db)
 
     async def get_user_by_id(self, user_id: int) -> User | None:
         """Retrieves a user by their ID."""
@@ -32,60 +31,6 @@ class AuthRepository:  # rename to AuthRepository
         stmt = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
-
-    def add(self, obj: Any) -> None:
-        """Adds an object to the current database session.
-
-        This method adds an object to the current database session, scheduling
-        it for insertion into the database when the session is flushed or
-        committed.
-
-        :param obj: The object to add to the database session.
-        :return: None
-        """
-        self.db.add(obj)
-
-    async def flush(self) -> None:
-        """Flushes the current database session.
-
-        This method flushes the current database session, saving any
-        pending changes to the database.
-
-        :return: None
-        """
-        await self.db.flush()
-
-    async def commit(self) -> None:
-        """Commits the current database transaction.
-
-        This method commits the current database transaction, persisting
-        any changes made to the database.
-
-        :return: None
-        """
-        await self.db.commit()
-
-    async def refresh(self, obj: Any) -> None:
-        """Refreshes the given object in the current database session.
-
-        This method refreshes the given object in the current database session.
-        It can be used to reload the object from the database after changes
-        have been made.
-
-        :param obj: The object to refresh.
-        :return: None
-        """
-        await self.db.refresh(obj)
-
-    async def rollback(self) -> None:
-        """Rolls back the current database transaction.
-
-        This method rolls back the current database transaction. It can be used
-        to revert changes made to the database in case of an error.
-
-        :return: None
-        """
-        await self.db.rollback()
 
     async def delete_activation_token(self, token: ActivationToken) -> None:
         """Deletes an activation token from the database.

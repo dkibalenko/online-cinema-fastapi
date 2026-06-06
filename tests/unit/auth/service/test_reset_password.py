@@ -34,7 +34,7 @@ async def test_reset_password_token_not_found():
     )
 
     with pytest.raises(HTTPException) as exc:
-        await service.reset_password(data)
+        await service.reset_password(data, MagicMock())
 
     assert exc.value.status_code == 400
     assert exc.value.detail == "Invalid or expired reset token."
@@ -68,7 +68,7 @@ async def test_reset_password_token_expired():
     )
 
     with pytest.raises(HTTPException) as exc:
-        await service.reset_password(data)
+        await service.reset_password(data, MagicMock())
 
     assert exc.value.status_code == 400
     assert exc.value.detail == "Reset token expired."
@@ -100,7 +100,7 @@ async def test_reset_password_user_not_found():
     )
 
     with pytest.raises(HTTPException) as exc:
-        await service.reset_password(data)
+        await service.reset_password(data, MagicMock())
 
     assert exc.value.status_code == 404
     assert exc.value.detail == "User not found."
@@ -140,7 +140,7 @@ async def test_reset_password_db_error(monkeypatch):
     )
 
     with pytest.raises(HTTPException) as exc:
-        await service.reset_password(data)
+        await service.reset_password(data, MagicMock())
 
     assert exc.value.status_code == 500
     mock_repo.rollback.assert_called_once()
@@ -183,7 +183,9 @@ async def test_reset_password_success(monkeypatch):
         password="Password123!"
     )
 
-    response = await service.reset_password(data)
+    mock_settings = MagicMock()
+    mock_settings.BASE_URL = "http://127.0.0.1:8000"
+    response = await service.reset_password(data, mock_settings)
 
     mock_repo.delete_password_reset_token.assert_called_once_with(token_record)
     mock_repo.commit.assert_called_once()

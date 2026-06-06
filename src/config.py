@@ -17,6 +17,7 @@ class BaseAppSettings(BaseSettings):
     }
 
     BASE_DIR: Path = Path(__file__).parent
+    BASE_URL: str = "http://localhost:8000"
 
     # Safe defaults
     CERT_JSON_PATH: str = str(
@@ -82,6 +83,7 @@ class Settings(BaseAppSettings):
     POSTGRES_HOST: str = "localhost"
     POSTGRES_DB_PORT: int = 5432
     POSTGRES_DB: str = "cinema_db"
+    SQL_ECHO: bool = False
 
     CELERY_BROKER_URL: str
     CELERY_RESULT_BACKEND: str

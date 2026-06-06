@@ -40,11 +40,4 @@ def cleanup_expired_tokens():
     scheduler like Celery or APScheduler. It should not be
     called directly.
     """
-    loop = asyncio.get_event_loop()
-
-    # If loop is closed (rare), create a new one
-    if loop.is_closed():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    loop.run_until_complete(_cleanup_expired_tokens())
+    asyncio.run(_cleanup_expired_tokens())

@@ -47,12 +47,16 @@ class AuthService:
         self.email_sender = email_sender
 
     async def register_user(
-        self, user_data: UserRegistrationRequestSchema
+        self,
+        user_data: UserRegistrationRequestSchema,
+        settings: BaseAppSettings,
     ) -> User:
         """Registers a new user based on the provided registration data.
 
         Args:
             user_data (UserRegistrationRequestSchema): The registration data
+            settings (BaseAppSettings): Application settings used to build
+                the activation link URL.
 
         Returns:
             User: The newly created user
@@ -113,7 +117,7 @@ class AuthService:
         # f"{settings.FRONTEND_URL}/activate?token={token.token}"
         # )
         activation_link = (
-            f"http://127.0.0.1:8000/api/v1/cinema/auth/activate?"
+            f"{settings.BASE_URL}/api/v1/cinema/auth/activate?"
             f"token={token.token}"
         )
 
@@ -127,12 +131,15 @@ class AuthService:
     async def activate_account(
         self,
         activation_data: UserActivationRequestSchema,
+        settings: BaseAppSettings,
     ) -> MessageResponseSchema:
         """Activate a user account based on the activation token.
 
         Args:
             activation_data (UserActivationRequestSchema): The activation data
                 containing the user's email and activation token.
+            settings (BaseAppSettings): Application settings (reserved for
+                future use in link generation).
 
         Returns:
             MessageResponseSchema: A response containing a success message.
@@ -176,7 +183,7 @@ class AuthService:
         await self.auth.commit()
 
         # 5. Send confirmation email
-        login_link = "http://127.0.0.1:8000/api/v1/cinema/auth/login"
+        login_link = f"{settings.BASE_URL}/api/v1/cinema/auth/login"
 
         # 6. enqueue celery task
         send_activation_complete_email.delay(str(user.email), login_link)
@@ -186,13 +193,17 @@ class AuthService:
         return MessageResponseSchema(message="Account activated successfully.")
 
     async def resend_activation_token(
-        self, email_data: ResendActivationRequestSchema
+        self,
+        email_data: ResendActivationRequestSchema,
+        settings: BaseAppSettings,
     ) -> MessageResponseSchema:
         """Resends an activation token for a user based on their email.
 
         Args:
             email_data (ResendActivationRequestSchema): The email data
                 containing the user's email.
+            settings (BaseAppSettings): Application settings used to build
+                the activation link URL.
 
         Returns:
             MessageResponseSchema: A response containing a success message.
@@ -204,34 +215,34 @@ class AuthService:
         """
         log.info(f"Resend activation attempt for {email_data.email}")
 
-        user = None
         try:
-            async with self.auth.db.begin():
-                user = await self.auth.get_user_by_email(email_data.email)
+            user = await self.auth.get_user_by_email(email_data.email)
 
-                if not user:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="User not found.",
-                    )
-
-                if user.is_active:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="User account is already active.",
-                    )
-
-                # Delete old token if exists + create new
-                old_token = await self.auth.get_activation_token_by_user_id(
-                    user.id
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found.",
                 )
 
-                if old_token:
-                    await self.auth.delete_activation_token(old_token)
+            if user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="User account is already active.",
+                )
 
-                new_token = ActivationToken(user_id=user.id)
-                self.auth.add(new_token)
+            old_token = await self.auth.get_activation_token_by_user_id(
+                user.id
+            )
+            if old_token:
+                await self.auth.delete_activation_token(old_token)
+
+            new_token = ActivationToken(user_id=user.id)
+            self.auth.add(new_token)
+            await self.auth.commit()
+        except HTTPException:
+            raise
         except SQLAlchemyError as error:
+            await self.auth.rollback()
             log.error(
                 f"Error during resend activation token creation for "
                 f"{email_data.email}: {error}"
@@ -243,7 +254,7 @@ class AuthService:
 
         # Send email
         activation_link = (
-            f"http://127.0.0.1:8000/api/v1/cinema/auth/activate?"
+            f"{settings.BASE_URL}/api/v1/cinema/auth/activate?"
             f"token={new_token.token}"
         )
 
@@ -428,13 +439,17 @@ class AuthService:
         return MessageResponseSchema(message="Logged out successfully.")
 
     async def request_password_reset(
-        self, data: PasswordResetRequestSchema
+        self,
+        data: PasswordResetRequestSchema,
+        settings: BaseAppSettings,
     ) -> MessageResponseSchema:
         """Requests a password reset for a user with the given email.
 
         Args:
             data (`PasswordResetRequestSchema`): The password reset request
                 data containing the user's email.
+            settings (BaseAppSettings): Application settings used to build
+                the password reset link URL.
 
         Returns:
             `MessageResponseSchema`: A response containing a success message.
@@ -474,11 +489,11 @@ class AuthService:
             await self.auth.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=str(error),
+                detail="An unexpected error occurred.",
             ) from error
 
         reset_password_link = (
-            f"http://127.0.0.1:8000/api/v1/cinema/auth/reset-password/"
+            f"{settings.BASE_URL}/api/v1/cinema/auth/reset-password/"
             f"complete?token={reset_token.token}"
         )
 
@@ -494,13 +509,17 @@ class AuthService:
         )
 
     async def reset_password(
-        self, data: PasswordResetCompleteRequestSchema
+        self,
+        data: PasswordResetCompleteRequestSchema,
+        settings: BaseAppSettings,
     ) -> MessageResponseSchema:
         """Resets the password for a user with the given reset token.
 
         Args:
             data (`PasswordResetCompleteRequestSchema`): The password reset
             complete request data containing the reset token and new password.
+            settings (BaseAppSettings): Application settings (reserved for
+                future use in redirect URL generation).
 
         Returns:
             `MessageResponseSchema`: A response containing a success message.
@@ -556,7 +575,7 @@ class AuthService:
             ) from error
 
         # 6. Send confirmation email
-        login_link = "http://127.0.0.1:8000/api/v1/cinema/auth/login"
+        login_link = f"{settings.BASE_URL}/api/v1/cinema/auth/login"
 
         # enqueue password reset email
         send_password_reset_complete_email.delay(user.email, login_link)
@@ -600,7 +619,7 @@ class AuthService:
             await self.auth.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=str(error),
+                detail="An unexpected error occurred.",
             ) from error
 
         log.info("Password changed successfully")

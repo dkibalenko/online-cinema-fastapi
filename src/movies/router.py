@@ -621,11 +621,11 @@ async def add_comment(
 
 @router.get(
     "/{movie_id}/comments",
-    response_model=list[CommentSchema],
+    response_model=Page[CommentSchema],
     summary="List comments for a movie",
     description=(
-        "Retrieve a list of comments for a specific movie. Each comment "
-        "includes the author's ID and the comment text."
+        "Retrieve a paginated list of comments for a specific movie. Each "
+        "comment includes the author's ID and the comment text."
     ),
     responses={
         200: {"description": "Comments retrieved successfully"},
@@ -639,7 +639,7 @@ async def list_comments(
         MovieCommentService, Depends(get_movie_comment_service)
     ],
 ):
-    """Retrieve a list of comments for a specific movie.
+    """Retrieve a paginated list of comments for a specific movie.
 
     Each comment includes the author's ID and the comment text.
 
@@ -647,7 +647,7 @@ async def list_comments(
         movie_id (int): The ID of the movie to list comments for.
 
     Returns:
-        list[CommentSchema]: A list of comments for the movie.
+        Page[CommentSchema]: A paginated list of comments for the movie.
 
     Raises:
         HTTPException: If the movie is not found.

@@ -1,11 +1,12 @@
 from typing import Any
 
-from sqlalchemy import Select, case, func, select
+from sqlalchemy import Select, case, delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
+from base_repository import BaseRepository
 from movies.models import (
     FavoriteMovie,
     Genre,
@@ -17,9 +18,9 @@ from movies.models import (
 )
 
 
-class MovieRepository:
+class MovieRepository(BaseRepository):
     def __init__(self, db: AsyncSession):
-        self.db = db
+        super().__init__(db)
 
     async def get_movie_by_id_with_relations(
         self, movie_id: int
@@ -67,9 +68,7 @@ class MovieRepository:
         result = await self.db.execute(
             select(Movie).where(Movie.id == movie_id)
         )
-        return (
-            result.unique().scalar_one_or_none()
-        )  # for joinedload/selectinload
+        return result.scalar_one_or_none()
 
     async def get_movie_by_name_year(
         self, name: str, year: int
@@ -92,48 +91,8 @@ class MovieRepository:
         """
         return await self.db.execute(stmt)
 
-    def add(self, instance: Any):
-        """Add an instance to the database.
-
-        :param instance: The instance to add.
-        :return: None
-        """
-        self.db.add(instance)
-
-    async def delete(self, instance: Any):
-        """Delete an instance from the database.
-
-        :param instance: The instance to delete.
-        :return: None
-        """
-        await self.db.delete(instance)
-
-    async def commit(self):
-        """Commit the current transaction.
-
-        This method can be used to confirm the effects of a transaction.
-        """
-        await self.db.commit()
-
-    async def rollback(self):
-        """Rollback the current transaction.
-
-        This method can be used to undo the effects of a transaction
-        that has not yet been committed. It is useful for error handling
-        and for ensuring consistency of the database.
-
-        :return: None
-        """
-        await self.db.rollback()
-
     async def refresh(self, instance: Any, attrs=None):
-        """Refresh an instance with the given attributes.
-
-        :param instance: The instance to refresh.
-        :param attrs: The attributes to refresh. If not provided, all
-            attributes are refreshed.
-        :return: None
-        """
+        """Refresh instance attributes, optionally limiting to given attrs."""
         await self.db.refresh(instance, attrs)
 
     async def refresh_with_relations(self, movie: Movie):
@@ -214,16 +173,11 @@ class MovieRepository:
 
         :return: None
         """
-        # 1. Check if the user has already reacted to the movie
-        stmt = select(MovieLike).where(
-            MovieLike.user_id == user_id, MovieLike.movie_id == movie_id
+        await self.db.execute(
+            delete(MovieLike).where(
+                MovieLike.user_id == user_id, MovieLike.movie_id == movie_id
+            )
         )
-        result = await self.db.execute(stmt)
-        existing = result.scalar_one_or_none()
-
-        # 2. Delete the reaction
-        if existing:
-            await self.db.delete(existing)
 
     async def get_movie_reaction_counts(
         self, movie_id: int
@@ -313,15 +267,12 @@ class MovieRepository:
         :param movie_id: The movie ID which the user rated
         :return: None
         """
-        stmt = select(MovieRating).where(
-            MovieRating.user_id == user_id, MovieRating.movie_id == movie_id
+        await self.db.execute(
+            delete(MovieRating).where(
+                MovieRating.user_id == user_id,
+                MovieRating.movie_id == movie_id,
+            )
         )
-        result = await self.db.execute(stmt)
-        rating = result.scalar_one_or_none()
-
-        if rating:
-            await self.db.delete(rating)
-            await self.db.flush()
 
     async def get_movie_rating_summary(
         self, user_id: int, movie_id: int
@@ -372,16 +323,15 @@ class MovieRepository:
         :param movie_id: The movie ID to add as favorite.
         :return: None
         """
-        stmt = select(FavoriteMovie).where(
-            FavoriteMovie.user_id == user_id,
-            FavoriteMovie.movie_id == movie_id,
+        stmt = (
+            insert(FavoriteMovie)
+            .values(user_id=user_id, movie_id=movie_id)
+            .on_conflict_do_nothing(
+                index_elements=[FavoriteMovie.user_id, FavoriteMovie.movie_id]
+            )
         )
-        result = await self.db.execute(stmt)
-        existing = result.scalar_one_or_none()
-
-        if not existing:
-            self.db.add(FavoriteMovie(user_id=user_id, movie_id=movie_id))
-            await self.db.flush()
+        await self.db.execute(stmt)
+        await self.db.flush()
 
     async def remove_favorite(self, user_id: int, movie_id: int) -> None:
         """Remove a favorite movie from the user.
@@ -390,16 +340,13 @@ class MovieRepository:
         :param movie_id: The movie ID to remove as favorite.
         :return: None
         """
-        stmt = select(FavoriteMovie).where(
-            FavoriteMovie.user_id == user_id,
-            FavoriteMovie.movie_id == movie_id,
+        await self.db.execute(
+            delete(FavoriteMovie).where(
+                FavoriteMovie.user_id == user_id,
+                FavoriteMovie.movie_id == movie_id,
+            )
         )
-        result = await self.db.execute(stmt)
-        favovite = result.scalar_one_or_none()
-
-        if favovite:
-            await self.db.delete(favovite)
-            await self.db.flush()
+        await self.db.flush()
 
     async def is_favorite(self, user_id: int, movie_id: int) -> bool:
         """Check if a movie is a favorite of the user.
@@ -461,21 +408,17 @@ class MovieRepository:
         await self.db.flush()
         return comment
 
-    async def get_comments_for_movie(  # fix with recursive CTE query
-        self, movie_id: int
-    ) -> list[MovieComment]:
-        """Retrieve a list of comments for a specific movie.
+    def get_comments_query(self, movie_id: int) -> Select:
+        """Return a query for paginated comments for a specific movie.
 
         :param movie_id: The ID of the movie to retrieve comments for.
-        :return: A list of comments for the movie.
+        :return: A SQLAlchemy Select query.
         """
-        stmt = (
+        return (
             select(MovieComment)
             .where(MovieComment.movie_id == movie_id)
             .order_by(MovieComment.created_at.asc())
         )
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
 
     async def get_comment_by_id(self, comment_id: int) -> MovieComment | None:
         """Retrieve a comment by its ID.
