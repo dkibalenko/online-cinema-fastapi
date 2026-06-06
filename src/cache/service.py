@@ -48,6 +48,6 @@ class CacheService:
 
     async def delete_pattern(self, pattern: str) -> None:
         """Delete all keys matching the given pattern."""
-        keys = await self.redis.keys(pattern)
+        keys = [key async for key in self.redis.scan_iter(pattern)]
         if keys:
             await self.redis.delete(*keys)
