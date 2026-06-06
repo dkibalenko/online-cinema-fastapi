@@ -55,6 +55,8 @@ class AuthService:
 
         Args:
             user_data (UserRegistrationRequestSchema): The registration data
+            settings (BaseAppSettings): Application settings used to build
+                the activation link URL.
 
         Returns:
             User: The newly created user
@@ -136,6 +138,8 @@ class AuthService:
         Args:
             activation_data (UserActivationRequestSchema): The activation data
                 containing the user's email and activation token.
+            settings (BaseAppSettings): Application settings (reserved for
+                future use in link generation).
 
         Returns:
             MessageResponseSchema: A response containing a success message.
@@ -198,6 +202,8 @@ class AuthService:
         Args:
             email_data (ResendActivationRequestSchema): The email data
                 containing the user's email.
+            settings (BaseAppSettings): Application settings used to build
+                the activation link URL.
 
         Returns:
             MessageResponseSchema: A response containing a success message.
@@ -224,7 +230,9 @@ class AuthService:
                     detail="User account is already active.",
                 )
 
-            old_token = await self.auth.get_activation_token_by_user_id(user.id)
+            old_token = await self.auth.get_activation_token_by_user_id(
+                user.id
+            )
             if old_token:
                 await self.auth.delete_activation_token(old_token)
 
@@ -431,13 +439,17 @@ class AuthService:
         return MessageResponseSchema(message="Logged out successfully.")
 
     async def request_password_reset(
-        self, data: PasswordResetRequestSchema, settings: BaseAppSettings,
+        self,
+        data: PasswordResetRequestSchema,
+        settings: BaseAppSettings,
     ) -> MessageResponseSchema:
         """Requests a password reset for a user with the given email.
 
         Args:
             data (`PasswordResetRequestSchema`): The password reset request
                 data containing the user's email.
+            settings (BaseAppSettings): Application settings used to build
+                the password reset link URL.
 
         Returns:
             `MessageResponseSchema`: A response containing a success message.
@@ -506,6 +518,8 @@ class AuthService:
         Args:
             data (`PasswordResetCompleteRequestSchema`): The password reset
             complete request data containing the reset token and new password.
+            settings (BaseAppSettings): Application settings (reserved for
+                future use in redirect URL generation).
 
         Returns:
             `MessageResponseSchema`: A response containing a success message.

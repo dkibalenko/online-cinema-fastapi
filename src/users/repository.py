@@ -59,4 +59,3 @@ class UserRepository(BaseRepository):
         stmt = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
-

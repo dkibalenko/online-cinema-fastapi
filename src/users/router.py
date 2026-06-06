@@ -151,9 +151,7 @@ async def update_my_profile(
     :raises HTTPException: If the profile is not found, or if the user does not
         have admin privileges.
     """
-    profile, avatar_url = await users.update_my_profile(
-        current_user.id, data
-    )
+    profile, avatar_url = await users.update_my_profile(current_user.id, data)
 
     return ProfileResponseSchema(
         id=profile.id,

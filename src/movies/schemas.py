@@ -28,7 +28,9 @@ class DirectorSchema(BaseSchema):
 
 class MovieBaseSchema(BaseModel):
     name: str = Field(..., max_length=255)
-    year: int = Field(..., ge=1900, le=date.today().year, description="Release year")
+    year: int = Field(
+        ..., ge=1900, le=date.today().year, description="Release year"
+    )
     time: int = Field(..., description="Duration in minutes")
     imdb: float = Field(..., ge=0, le=10)
     votes: int = Field(..., ge=0, description="Number of votes on IMDb")

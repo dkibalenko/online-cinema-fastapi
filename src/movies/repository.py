@@ -92,6 +92,7 @@ class MovieRepository(BaseRepository):
         return await self.db.execute(stmt)
 
     async def refresh(self, instance: Any, attrs=None):
+        """Refresh instance attributes, optionally limiting to given attrs."""
         await self.db.refresh(instance, attrs)
 
     async def refresh_with_relations(self, movie: Movie):
@@ -268,7 +269,8 @@ class MovieRepository(BaseRepository):
         """
         await self.db.execute(
             delete(MovieRating).where(
-                MovieRating.user_id == user_id, MovieRating.movie_id == movie_id
+                MovieRating.user_id == user_id,
+                MovieRating.movie_id == movie_id,
             )
         )
 

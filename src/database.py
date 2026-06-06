@@ -28,7 +28,7 @@ class Base(DeclarativeBase):
         :return: A sqlalchemy.sql.expression.Clause object or None.
         :rtype: typing.Optional[sqlalchemy.sql.expression.Clause]
         """
-        return None
+        return
 
 
 # --- Async Postgres engine & session (main app) ---
@@ -38,7 +38,9 @@ POSTGRESQL_DATABASE_URL = (
     f"{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:"
     f"{settings.POSTGRES_DB_PORT}/{settings.POSTGRES_DB}"
 )
-async_engine = create_async_engine(POSTGRESQL_DATABASE_URL, echo=settings.SQL_ECHO)
+async_engine = create_async_engine(
+    POSTGRESQL_DATABASE_URL, echo=settings.SQL_ECHO
+)
 
 AsyncSessionLocal = async_sessionmaker(  # type: ignore
     bind=async_engine,
