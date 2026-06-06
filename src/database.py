@@ -49,7 +49,7 @@ POSTGRESQL_DATABASE_URL = (
 #     pool_pre_ping=True, # avoid stale connections
 # )
 
-async_engine = create_async_engine(POSTGRESQL_DATABASE_URL, echo=True)
+async_engine = create_async_engine(POSTGRESQL_DATABASE_URL, echo=settings.SQL_ECHO)
 
 AsyncSessionLocal = async_sessionmaker(  # type: ignore
     bind=async_engine,

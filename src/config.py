@@ -83,6 +83,7 @@ class Settings(BaseAppSettings):
     POSTGRES_HOST: str = "localhost"
     POSTGRES_DB_PORT: int = 5432
     POSTGRES_DB: str = "cinema_db"
+    SQL_ECHO: bool = False
 
     CELERY_BROKER_URL: str
     CELERY_RESULT_BACKEND: str
