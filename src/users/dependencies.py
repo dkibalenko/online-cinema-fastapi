@@ -3,8 +3,6 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth.dependencies import get_jwt_auth_manager
-from auth.interfaces import JWTAuthManagerInterface
 from database import get_db
 from storages.dependencies import get_s3_storage_client
 from storages.interfaces import S3StorageInterface
@@ -54,14 +52,12 @@ def get_token(request: Request) -> str:
 
 def get_users_service(
     users: Annotated[UserRepository, Depends(get_user_repository)],
-    jwt: Annotated[JWTAuthManagerInterface, Depends(get_jwt_auth_manager)],
     s3_client: Annotated[S3StorageInterface, Depends(get_s3_storage_client)],
 ) -> UserService:
     """Dependency factory that returns an instance of the UserService class.
 
     :param users: An instance of the UserRepository class.
-    :param jwt: An instance of the JWTAuthManagerInterface class.
     :param s3_client: An instance of the S3StorageInterface class.
     :return: An instance of the UserService class.
     """
-    return UserService(users=users, jwt=jwt, s3_client=s3_client)
+    return UserService(users=users, s3_client=s3_client)
