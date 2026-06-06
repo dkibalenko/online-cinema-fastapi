@@ -1,16 +1,15 @@
-from typing import Any
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from base_repository import BaseRepository
 from users.enums import UserGroupEnum
 from users.models import User, UserGroup
 
 
-class UserRepository:
+class UserRepository(BaseRepository):
     def __init__(self, db: AsyncSession):
-        self.db = db
+        super().__init__(db)
 
     async def get_by_id(self, user_id: int) -> User | None:
         """Retrieves a user by their ID.
@@ -61,62 +60,3 @@ class UserRepository:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    def add(self, instance: Any) -> None:
-        """Adds an instance to the database.
-
-        :param instance: The instance to add.
-        :return: None
-        """
-        self.db.add(instance)
-
-    async def delete(self, instance: Any) -> None:
-        """Deletes an instance from the database.
-
-        :param instance: The instance to delete.
-        :return: None
-        """
-        await self.db.delete(instance)
-
-    async def flush(self) -> None:
-        """Flushes the current database session.
-
-        This method flushes the current database session, saving any
-        pending changes to the database.
-
-        :return: None
-        """
-        await self.db.flush()
-
-    async def commit(self) -> None:
-        """Commits the current transaction.
-
-        This method commits the current transaction. It is generally used
-        after successful operations to persist the changes made in the
-        transaction.
-
-        :raises: NoResultFound
-        """
-        await self.db.commit()
-
-    async def rollback(self) -> None:
-        """Rolls back the current transaction.
-
-        This method rolls back the current transaction. It is generally used
-        after an exception has been raised to revert the changes made in
-        the transaction.
-
-        :raises: NoResultFound
-        """
-        await self.db.rollback()
-
-    async def refresh(self, instance: Any) -> None:
-        """Refreshes the given object in the current database session.
-
-        This method refreshes the given object in the current database session.
-        It can be used to reload the object from the database after changes
-        have been made.
-
-        :param instance: The object to refresh.
-        :return: None
-        """
-        await self.db.refresh(instance)
