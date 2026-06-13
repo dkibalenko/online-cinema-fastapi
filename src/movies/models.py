@@ -134,7 +134,7 @@ class Movie(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     uu_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        server_default=func.gen_random_uuid(),  # Postgres generate the UUID
+        server_default=func.gen_random_uuid(),
         unique=True,
         index=True,
         nullable=False,

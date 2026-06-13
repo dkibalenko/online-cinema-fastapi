@@ -19,15 +19,7 @@ settings = get_settings()
 class Base(DeclarativeBase):
     @classmethod
     def default_order_by(cls):
-        """Returns a default ordering for the model, if applicable.
-
-        This function is typically overridden by models to provide their own
-        default ordering. It should return a sqlalchemy.sql.expression.Clause
-        object or None if no default ordering is applicable.
-
-        :return: A sqlalchemy.sql.expression.Clause object or None.
-        :rtype: typing.Optional[sqlalchemy.sql.expression.Clause]
-        """
+        """Default ordering for queries."""
         return
 
 
@@ -44,16 +36,10 @@ async_engine = create_async_engine(
 
 AsyncSessionLocal = async_sessionmaker(  # type: ignore
     bind=async_engine,
-    # class to use to create new Session
-    # (an alternate class to .orm.session.Session)
     class_=AsyncSession,
-    # you must explicitly persist changes, otherwise changes are rolled back
-    # when session is closed
     autocommit=False,
-    # pending changes stay in memory until explicitly called .flush or .commit
     autoflush=False,
-    # objects remain in memory with their current values after commit
-    expire_on_commit=False,
+    expire_on_commit=False,  # async specific
 )
 
 

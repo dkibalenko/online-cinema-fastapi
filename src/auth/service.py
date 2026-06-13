@@ -385,19 +385,35 @@ class AuthService:
                 detail="User not found.",
             )
 
-        # 4. (Optional) rotate refresh token here if needed
-        # new_refresh = generate_secure_token(64)
-        # refresh_token_record.token = new_refresh
-        # await self.auth.commit()
+        # 4. Rotate refresh token: delete old, issue new with same expiry
+        new_refresh_token = generate_secure_token(64)
+        expires_at = refresh_token_record.expires_at
 
-        # 5. Generate new access token
-        access_token = self.jwt.create_access_token({"user_id": user.id})
+        try:
+            await self.auth.delete_refresh_token(refresh_token_record)
+            new_refresh_token_record = RefreshToken(
+                user_id=user.id,
+                token=new_refresh_token,
+                expires_at=expires_at,
+            )
+            self.auth.add(new_refresh_token_record)
+
+            # 5. Generate new access token
+            access_token = self.jwt.create_access_token({"user_id": user.id})
+
+            await self.auth.commit()
+        except SQLAlchemyError as error:
+            await self.auth.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while refreshing the token.",
+            ) from error
 
         log.info("Access token refreshed successfully")
 
         return TokenRefreshResponseSchema(
             access_token=access_token,
-            # refresh_token=new_refresh,
+            refresh_token=new_refresh_token,
         )
 
     async def logout_user(

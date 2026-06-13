@@ -32,6 +32,12 @@ if TYPE_CHECKING:
 
 
 class UserGroup(Base):
+    """Lookup table with exactly three rows, each representing a user group.
+
+    Represents a user group in the system, such as 'user', 'moderator',
+    or 'admin'. Each user group can have multiple users associated with it.
+    """
+
     __tablename__ = "user_groups"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -45,6 +51,8 @@ class UserGroup(Base):
 
 
 class User(Base):
+    """Represents a user - authentication identity in the system."""
+
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -167,6 +175,8 @@ class User(Base):
 
 
 class UserProfile(Base):
+    """Represents a user's profile information in the system."""
+
     __tablename__ = "user_profiles"
     __table_args__ = (UniqueConstraint("user_id"),)
 

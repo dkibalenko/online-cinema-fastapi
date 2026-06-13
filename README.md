@@ -50,7 +50,7 @@
 
 ## Features
 
-- **JWT authentication** — access + opaque DB-backed refresh tokens, activation, password reset, RBAC
+- **JWT authentication** — short-lived JWT access tokens + opaque DB-backed refresh tokens with rotation on every refresh, activation, password reset, RBAC
 - **User management** — profiles, avatar upload (S3/MinIO), admin console with filtering and pagination
 - **Movie catalog** — genres, directors, stars, certifications; full-text search, filtering, sorting, pagination
 - **Interactions** — atomic upsert likes/dislikes, 1–10 ratings, favorites (with full catalog filtering)
@@ -355,7 +355,7 @@ Full ERD: [docs/online-cinema-db.png](docs/online-cinema-db.png)
 
 ## Implementation Notes
 
-**Token revocation without a blocklist** — Using opaque refresh tokens stored in PostgreSQL rather than a Redis blocklist keeps the revocation path simple: `DELETE FROM refresh_tokens WHERE token = ?`. Expired tokens are cleaned up by a scheduled Celery Beat task.
+**Token revocation and rotation** — Opaque refresh tokens are stored in PostgreSQL. Revocation on logout is a single `DELETE FROM refresh_tokens WHERE token = ?` — no blocklist needed. On every `POST /refresh`, the old token row is deleted and a new one is inserted in the same transaction, returning the new opaque token alongside the new JWT access token. The new token inherits the original `expires_at`, so the session lifetime is fixed from login time regardless of how many refreshes occur. Expired tokens are cleaned up by a scheduled Celery Beat task.
 
 **Async lazy-load pitfall** — SQLAlchemy async sessions do not support lazy loading. All relationships accessed outside the session context require explicit eager loading (`joinedload` / `selectinload`). This constraint is enforced at the query level throughout the codebase.
 

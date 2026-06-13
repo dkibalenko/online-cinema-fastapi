@@ -21,7 +21,6 @@ class TokenBaseModel(Base):
         String(255),
         unique=True,
         nullable=False,
-        # when create the token, its value is set before flush()
         default=generate_secure_token,
     )
     expires_at: Mapped[datetime] = mapped_column(
@@ -42,7 +41,7 @@ class ActivationToken(TokenBaseModel):
     user: Mapped[User] = relationship(
         "User",
         back_populates="activation_token",
-        uselist=False,  # user.activation_token returns an object, not a list
+        uselist=False,
     )
 
     def __repr__(self):
@@ -82,7 +81,8 @@ class RefreshToken(TokenBaseModel):
         """Factory method to create a new RefreshToken object.
 
         Simplifies the creation process by automatically calculating and
-        setting the expiration date based on the number of days specified.
+        setting the expiration date. Refresh token can have a different
+        lifetime controlled by `days_valid` parameter.
         """
         expires_at = datetime.now(UTC) + timedelta(days=days_valid)
         return cls(user_id=user_id, token=token, expires_at=expires_at)
