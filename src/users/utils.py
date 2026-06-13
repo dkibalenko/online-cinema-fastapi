@@ -1,13 +1,8 @@
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(
-    # primary hashing algorithm, which is cryptographically secure
-    # for password storage
     schemes=["bcrypt"],
-    # number of iterations (rounds) bcrypt performs when hashing a password
     bcrypt__rounds=14,
-    # automatically detects and handles legacy hashed passwords from older
-    # schemes during verification
     deprecated="auto",
 )
 
