@@ -6,7 +6,7 @@ from movies.dependencies import get_movie_service
 from movies.schemas import GenreWithCountSchema
 from movies.service import MovieService
 
-router = APIRouter(prefix="/genres", tags=["genres"])
+router = APIRouter(prefix="/genres", tags=["Genres"])
 
 
 @router.get(
@@ -20,9 +20,5 @@ router = APIRouter(prefix="/genres", tags=["genres"])
 async def get_genre_list_with_count(
     service: Annotated[MovieService, Depends(get_movie_service)],
 ) -> list[GenreWithCountSchema]:
-    """Retrieve a list of genres with their associated movie count.
-
-    Returns:
-        list[GenreWithCountSchema]: A list of GenreWithCountSchema objects.
-    """
+    """Retrieve a list of genres with their associated movie count."""
     return await service.list_genres_with_count()

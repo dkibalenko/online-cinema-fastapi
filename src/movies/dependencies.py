@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cache.dependencies import get_cache
 from cache.service import CacheService
 from database import get_db
-from movies.repository import MovieRepository
+from movies.repositories import MovieRepository
 from movies.service import (
     MovieCacheInvalidationService,
     MovieCommentService,

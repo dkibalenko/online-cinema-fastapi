@@ -33,6 +33,7 @@ aiofiles = "^25.1.0"
 fastapi-pagination = "^0.15.5"
 slowapi = "^0.1.9"
 celery = "^5.6.2"
+ffmpeg-python = "^0.2.0"
 redis = {extras = ["async"], version = "^7.2.1"}
 flower = "^2.0.1"
 pytest-postgresql = "^8.0.0"

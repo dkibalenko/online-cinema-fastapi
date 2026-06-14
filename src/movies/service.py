@@ -11,7 +11,7 @@ from cinema_celery.tasks.comment_tasks import send_comment_reply_notification
 from logger_config import get_logger
 from movies.filters import build_movie_filter_query
 from movies.models import Certification, Director, Genre, Movie, Star
-from movies.repository import MovieRepository
+from movies.repositories import MovieRepository
 from movies.schemas import (
     CommentCreateSchema,
     CommentSchema,
