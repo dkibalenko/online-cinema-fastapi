@@ -49,6 +49,7 @@ class BaseAppSettings(BaseSettings):
     S3_STORAGE_ACCESS_KEY: str
     S3_STORAGE_SECRET_KEY: str
     S3_BUCKET_NAME: str
+    S3_PUBLIC_HOST: str = "localhost"  # browser-reachable host for redirect URLs
 
     # Safe defaults
     PATH_TO_AUTH_EMAIL_TEMPLATES_DIR: str = str(
@@ -74,6 +75,19 @@ class BaseAppSettings(BaseSettings):
                 "http://host:port".
         """
         return f"http://{self.S3_STORAGE_HOST}:{self.S3_STORAGE_PORT}"
+
+    @property
+    def S3_PUBLIC_ENDPOINT(self) -> str:
+        """Browser-reachable MinIO URL used in redirect responses.
+
+        S3_STORAGE_HOST is the internal Docker hostname (minio), which
+        browsers cannot resolve. S3_PUBLIC_HOST is the externally accessible
+        host (localhost in dev, CDN/domain in prod).
+
+        Returns:
+            str: Public-facing MinIO endpoint URL.
+        """
+        return f"http://{self.S3_PUBLIC_HOST}:{self.S3_STORAGE_PORT}"
 
 
 class Settings(BaseAppSettings):

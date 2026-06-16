@@ -40,13 +40,17 @@ class S3StorageClient(S3StorageInterface):
         )
 
     async def upload_file(
-        self, file_name: str, file_data: bytes | bytearray
+        self,
+        file_name: str,
+        file_data: bytes | bytearray,
+        content_type: str = "application/octet-stream",
     ) -> None:
         """Asynchronously upload a file to the S3-compatible storage.
 
         Args:
             file_name (str): The name of the file to be stored.
             file_data (Union[bytes, bytearray]): The file data in bytes.
+            content_type (str): MIME type of the file being uploaded.
 
         Raises:
             S3ConnectionError: If there is a connection error with S3.
@@ -60,7 +64,7 @@ class S3StorageClient(S3StorageInterface):
                     Bucket=self._bucket_name,
                     Key=file_name,
                     Body=file_data,
-                    ContentType="image/jpeg",
+                    ContentType=content_type,
                 )
         except (ConnectionError, HTTPClientError, NoCredentialsError) as e:
             raise S3ConnectionError(
@@ -69,6 +73,36 @@ class S3StorageClient(S3StorageInterface):
         except BotoCoreError as e:
             raise S3FileUploadError(
                 f"Failed to upload to S3 storage: {str(e)}"
+            ) from e
+
+    async def download_file(self, file_name: str) -> bytes:
+        """Download a file from S3-compatible storage and return its bytes.
+
+        Args:
+            file_name (str): The key of the file to download.
+
+        Returns:
+            bytes: Raw file contents.
+
+        Raises:
+            S3ConnectionError: If there is a connection error with S3.
+            S3FileUploadError: If the download fails due to a BotoCore error.
+        """
+        try:
+            async with self._session.client(
+                "s3", endpoint_url=self._endpoint_url
+            ) as client:
+                response = await client.get_object(
+                    Bucket=self._bucket_name, Key=file_name
+                )
+                return await response["Body"].read()
+        except (ConnectionError, HTTPClientError, NoCredentialsError) as e:
+            raise S3ConnectionError(
+                f"Failed to connect to S3 storage: {str(e)}"
+            ) from e
+        except (BotoCoreError, ClientError) as e:
+            raise S3FileUploadError(
+                f"Failed to download file from S3 storage: {str(e)}"
             ) from e
 
     async def get_file_url(self, file_name: str) -> str:

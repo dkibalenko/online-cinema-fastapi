@@ -5,14 +5,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cache.dependencies import get_cache
 from cache.service import CacheService
+from config import get_settings
 from database import get_db
-from movies.repository import MovieRepository
-from movies.service import (
+from movies.repositories import MovieRepository
+from movies.repositories.video import VideoFileRepository
+from movies.services import (
     MovieCacheInvalidationService,
     MovieCommentService,
     MovieReactionService,
     MovieService,
+    VideoService,
 )
+from storages.dependencies import get_s3_storage_client
+from storages.interfaces import S3StorageInterface
 
 
 def get_movie_cache_invalidation_service(
@@ -66,6 +71,8 @@ def get_movie_reaction_service(
     reactions.
 
     :param db: An async database session.
+    :param cache: An instance of CacheService.
+    :param cache_invalidator: An instance of MovieCacheInvalidationService.
     :return: An instance of MovieReactionService.
     """
     repo = MovieRepository(db)
@@ -90,3 +97,20 @@ def get_movie_comment_service(
     """
     repo = MovieRepository(db)
     return MovieCommentService(repo)
+
+
+def get_video_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    s3: Annotated[S3StorageInterface, Depends(get_s3_storage_client)],
+) -> VideoService:
+    """Returns an instance of VideoService.
+
+    Provides methods for video upload, transcode status, and stream URL.
+
+    :param db: An async database session.
+    :param s3: An S3 storage client.
+    :return: An instance of VideoService.
+    """
+    repo = VideoFileRepository(db)
+    settings = get_settings()
+    return VideoService(repo, s3, settings)

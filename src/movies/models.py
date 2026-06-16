@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import enum
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -18,6 +19,9 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+)
+from sqlalchemy import (
+    Enum as SAEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -177,6 +181,12 @@ class Movie(Base):
     comments: Mapped[list[MovieComment]] = relationship(
         "MovieComment", back_populates="movie", cascade="all, delete-orphan"
     )
+    video: Mapped[VideoFile | None] = relationship(
+        "VideoFile",
+        back_populates="movie",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
     @classmethod
     def default_order_by(cls):
@@ -330,6 +340,59 @@ class MovieComment(Base):
     parent = relationship("MovieComment", remote_side=[id], backref="replies")
     movie = relationship("Movie", back_populates="comments")
     user = relationship("User", back_populates="movie_comments")
+
+
+class VideoStatus(enum.StrEnum):
+    """Lifecycle states for an HLS video transcode job."""
+
+    PENDING = "pending"
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
+
+
+class VideoFile(Base):
+    """Stores metadata for a Movie's HLS video file and transcode status."""
+
+    __tablename__ = "video_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    movie_id: Mapped[int] = mapped_column(
+        ForeignKey("movies.id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+    status: Mapped[VideoStatus] = mapped_column(
+        SAEnum(
+            VideoStatus,
+            name="videostatus",
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        default=VideoStatus.PENDING,
+        nullable=False,
+    )
+    raw_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    uploaded_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    movie: Mapped[Movie] = relationship("Movie", back_populates="video")
+
+    def __repr__(self) -> str:
+        return (
+            f"VideoFile(movie_id={self.movie_id}, status={self.status.value})"
+        )
 
 
 class Certification(Base):

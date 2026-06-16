@@ -1,12 +1,17 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from auth.router import router as auth_router
 from logger_config import setup_logging
-from movies.genres_router import router as genres_router
-from movies.router import router as movies_router
+from movies.routers import (
+    crud_router,
+    genres_router,
+    interactions_router,
+    video_router,
+)
 from notifications.ws_router import router as ws_router
 from pagination import setup_pagination
 from rate_limiting import limiter
@@ -43,6 +48,15 @@ def create_app(testing: bool = False) -> FastAPI:
         debug=testing,
     )
 
+    # CORS - allow Swagger UI, the local HTML player
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     # Pagination
     setup_pagination(app)
 
@@ -52,8 +66,10 @@ def create_app(testing: bool = False) -> FastAPI:
     app.include_router(auth_router, prefix=f"{api_version_prefix}")
     app.include_router(users_router, prefix=f"{api_version_prefix}")
     app.include_router(admin_router, prefix=f"{api_version_prefix}")
-    app.include_router(movies_router, prefix=f"{api_version_prefix}")
+    app.include_router(crud_router, prefix=f"{api_version_prefix}")
+    app.include_router(interactions_router, prefix=f"{api_version_prefix}")
     app.include_router(genres_router, prefix=f"{api_version_prefix}")
+    app.include_router(video_router, prefix=f"{api_version_prefix}")
     app.include_router(ws_router, prefix=f"{api_version_prefix}")
 
     # Rate limiting only in non‑test runs

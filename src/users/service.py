@@ -77,7 +77,9 @@ class UserService:
             file_name = f"avatars/{user_id}_avatar.{ext}"
 
             try:
-                await self.s3_client.upload_file(file_name, contents)
+                await self.s3_client.upload_file(
+                    file_name, contents, content_type="image/jpeg"
+                )
                 avatar_url = await self.s3_client.get_file_url(file_name)
                 log.info(
                     f"Avatar upload | user_id={user_id} filename={file_name}"
@@ -227,7 +229,9 @@ class UserService:
                     )
 
             try:
-                await self.s3_client.upload_file(file_name, contents)
+                await self.s3_client.upload_file(
+                    file_name, contents, content_type="image/jpeg"
+                )
                 avatar_url = await self.s3_client.get_file_url(file_name)
                 log.info(f"Avatar uploaded | user_id={user_id}")
             except (S3ConnectionError, S3FileUploadError) as e:

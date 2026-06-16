@@ -187,26 +187,12 @@ class MovieRepository(BaseRepository):
         :param movie_id: The movie ID to get the reaction counts for.
         :return: A tuple containing the like count and dislike count.
         """
-        # SELECT
-        # SUM(CASE WHEN movie_likes.is_like = TRUE THEN 1 ELSE 0 END) AS sum_1,
-        # SUM(CASE WHEN movie_likes.is_like = FALSE THEN 1 ELSE 0 END) AS sum_2
-        # FROM movie_likes
-        # WHERE movie_likes.movie_id = <movie_id>;
         stmt = select(
-            # counts rows matching a condition
-            func.sum(
-                case((MovieLike.is_like.is_(True), 1), else_=0)
-                # case((MovieLike.is_like == True, 1), else_=0)
-            ),  # number of likes
-            func.sum(
-                case((MovieLike.is_like.is_(False), 1), else_=0)
-                # case((MovieLike.is_like == False, 1), else_=0)
-            ),  # number of dislikes
+            func.sum(case((MovieLike.is_like.is_(True), 1), else_=0)),
+            func.sum(case((MovieLike.is_like.is_(False), 1), else_=0)),
         ).where(MovieLike.movie_id == movie_id)
         result = await self.db.execute(stmt)
-        likes, dislikes = (
-            result.one()
-        )  # always returns exactly one row - SUM() always returns a row
+        likes, dislikes = result.one()
 
         return int(likes or 0), int(dislikes or 0)
 
@@ -241,11 +227,6 @@ class MovieRepository(BaseRepository):
         :param rating: The rating value to update
         :return: None
         """
-        # atomic UPSERT moves concurrency control into PostgreSQL
-        # no race, no duplicate inserts, no 500s
-        # INSERT INTO movie_ratings (...)
-        # ON CONFLICT (user_id, movie_id)
-        # DO UPDATE SET rating = EXCLUDED.rating;
         stmt = (
             insert(MovieRating)
             .values(
@@ -284,30 +265,16 @@ class MovieRepository(BaseRepository):
         :return: A tuple containing the average rating, the count of ratings,
             and the user's rating.
         """
-        # aggregate
-        # SELECT
-        #     AVG(movie_ratings.rating) AS avg_rating,
-        #     COUNT(movie_ratings.rating) AS count_rating
-        # FROM movie_ratings
-        # WHERE movie_ratings.movie_id = :movie_id;
         agg_stmt = select(
-            func.avg(MovieRating.rating),  # avg rating
-            func.count(MovieRating.rating),  # rating count
+            func.avg(MovieRating.rating),
+            func.count(MovieRating.rating),
         ).where(MovieRating.movie_id == movie_id)
 
         agg_result = await self.db.execute(agg_stmt)
         avg_rating, count = agg_result.one()
-        avg_rating = (
-            float(avg_rating) if avg_rating is not None else None
-        )  # AVG() returns NULL if no rows exist
-        count = int(count or 0)  # COUNT() returns 0 if no rows exist
+        avg_rating = float(avg_rating) if avg_rating is not None else None
+        count = int(count or 0)
 
-        # user rating
-        # SELECT movie_ratings.rating
-        # FROM movie_ratings
-        # WHERE movie_ratings.user_id = :user_id AND
-        # movie_ratings.movie_id = :movie_id; LOOKUP is VERY FAST since
-        # user_id/movie_id form a composite PK key
         user_stmt = select(MovieRating.rating).where(
             MovieRating.user_id == user_id, MovieRating.movie_id == movie_id
         )
