@@ -1,6 +1,6 @@
 # Online Cinema API
 
-> Production-grade async REST API backend for a digital video platform. An online cinema is a platform where users can browse, watch, and purchase access to movies and video content over the internet. The project currently implements a complete **movie catalog and interaction layer** — the foundation for a full streaming service. Development is ongoing; upcoming milestones include video streaming, CD pipeline, deployment automation, and expanded test coverage.
+> Production-grade async REST API backend for a digital video platform. An online cinema is a platform where users can browse, watch, and purchase access to movies and video content over the internet. The project implements a complete **movie catalog, interaction layer, and HLS video streaming pipeline** — from raw upload through FFmpeg transcoding to adaptive-bitrate playback in any HLS-capable browser. Development is ongoing; upcoming milestones include CD pipeline, deployment automation, and expanded test coverage.
 
 [![CI](https://github.com/dkibalenko/online-cinema-fastapi/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/dkibalenko/online-cinema-fastapi/actions/workflows/ci.yml)
 [![Coverage](https://codecov.io/gh/dkibalenko/online-cinema-fastapi/branch/dev/graph/badge.svg)](https://codecov.io/gh/dkibalenko/online-cinema-fastapi)
@@ -15,11 +15,22 @@
 
 ## Demo
 
-**Load test video (500 users, Locust):**
-
-<a href="https://youtu.be/-01bDbUgVlo">
-  <img src="https://img.youtube.com/vi/-01bDbUgVlo/hqdefault.jpg" width="480" alt="Load test demo">
-</a>
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://youtu.be/y59jlSmeKQQ">
+        <img src="https://img.youtube.com/vi/y59jlSmeKQQ/hqdefault.jpg" width="400" alt="HLS streaming demo">
+      </a><br>
+      <strong>HLS video streaming</strong>
+    </td>
+    <td align="center">
+      <a href="https://youtu.be/-01bDbUgVlo">
+        <img src="https://img.youtube.com/vi/-01bDbUgVlo/hqdefault.jpg" width="400" alt="Load test demo">
+      </a><br>
+      <strong>Load test (500 users, Locust)</strong>
+    </td>
+  </tr>
+</table>
 
 **Screenshots:**
 
@@ -60,6 +71,7 @@
 - **NGINX** — SSL/TLS 1.2/1.3, WebSocket upgrade, GET response caching, HTTP→HTTPS redirect
 - **Database seeding** — idempotent async seeder with auto-generated JSON fixtures
 - **Load tested** — 500 concurrent users, 60k requests, 0 failures at ~130 RPS (Locust)
+- **HLS video streaming** — Admin/Moderator uploads a raw MP4; Celery worker transcodes to 360p + 720p HLS variants via FFmpeg; segments and playlists are stored in MinIO; authenticated users stream via a `302` redirect to the master playlist; any HLS player (hls.js, Safari native) works out of the box
 - **CI pipeline** — GitHub Actions: Ruff linting, mypy type checking, pytest with coverage, Codecov reporting on every push
 
 ---
@@ -122,6 +134,7 @@ Key design decisions:
 | **ORM / DB** | SQLAlchemy 2.0 (async), PostgreSQL 16, Alembic |
 | **Caching** | Redis (async, `scan_iter`-based invalidation) |
 | **Background tasks** | Celery, Celery Beat, Flower |
+| **Video** | FFmpeg (HLS transcoding), hls.js (browser player) |
 | **Storage** | MinIO (S3-compatible), aioboto3 |
 | **Email** | aiosmtplib, Jinja2 templates, MailHog (dev) |
 | **Proxy** | NGINX (TLS 1.2/1.3, WebSocket, caching) |
@@ -140,7 +153,10 @@ online-cinema-fastapi/
 │   ├── users/
 │   │   ├── admin/         # Admin console (users, profiles, groups)
 │   │   └── ...            # Self-service user endpoints
-│   ├── movies/            # Catalog, interactions, comments
+│   ├── movies/
+│   │   ├── routers/       # CRUD, interactions, genres, video endpoints
+│   │   ├── services/      # MovieService, VideoService, reactions, comments, cache
+│   │   └── ...            # Models, schemas, repositories
 │   ├── notifications/     # WebSocket connection manager
 │   ├── cache/             # Redis CacheService
 │   ├── storages/          # S3/MinIO client
@@ -158,6 +174,7 @@ online-cinema-fastapi/
 ├── nginx/                 # nginx.conf + site.conf
 ├── load_tests/            # Locust scenarios
 ├── commands/              # Container startup scripts
+├── scripts/               # player.html (HLS smoke-test player), smoke_test_video.sh
 ├── docs/                  # ERD, architecture diagrams
 ├── makefile
 ├── pyproject.toml
@@ -247,6 +264,7 @@ Docker applies migrations automatically on `make dev-up` — never autogenerates
 | `S3_STORAGE_ACCESS_KEY` | MinIO access key | `minioadmin` |
 | `S3_STORAGE_SECRET_KEY` | MinIO secret key | `some_password` |
 | `S3_BUCKET_NAME` | S3 bucket name | `cinema-media` |
+| `S3_PUBLIC_HOST` | Browser-reachable MinIO hostname for HLS redirect URLs | `localhost` |
 | `PGADMIN_DEFAULT_EMAIL` | PgAdmin login | `admin@admin.com` |
 | `PGADMIN_DEFAULT_PASSWORD` | PgAdmin password | `secret` |
 | `SQL_ECHO` | SQLAlchemy query logging | `false` |
@@ -316,6 +334,18 @@ All protected endpoints require `Authorization: Bearer <access_token>`.
 | `POST` | `/movies/{id}/comments` | Post a comment or reply | ✓ |
 | `GET` | `/movies/{id}/comments` | List comments (paginated) | ✓ |
 
+### Video Streaming `/movies`
+
+| Method | Path | Description | Role |
+|---|---|---|---|
+| `POST` | `/movies/{id}/video` | Upload a raw video file and queue HLS transcoding | MODERATOR+ |
+| `GET` | `/movies/{id}/video/status` | Poll transcode status (`pending` / `processing` / `ready` / `failed`) | ✓ |
+| `GET` | `/movies/{id}/stream` | Redirect to the HLS master playlist for adaptive-bitrate playback | ✓ |
+
+The upload endpoint streams the file directly to MinIO (no RAM buffering for large files). The Celery worker transcodes to **360p** and **720p** HLS variants and uploads all `.m3u8` and `.ts` segments. The stream endpoint issues a `302` to the browser-reachable MinIO URL (`S3_PUBLIC_HOST:S3_STORAGE_PORT`). A WebSocket notification is pushed to the uploader on completion or failure.
+
+**Quick browser test:** open `scripts/player.html` locally, enter credentials and a movie ID, press **Play**.
+
 ### Genres `/genres`
 
 | Method | Path | Description | Auth |
@@ -362,5 +392,7 @@ Full ERD: [docs/online-cinema-db.png](docs/online-cinema-db.png)
 **Cache invalidation strategy** — Pattern-based invalidation (`movies:list:{user_id}:*`, `movie:{id}:detail:*`) via Redis `SCAN` cursor iteration keeps invalidation targeted without ever calling `KEYS` (which blocks the server). Cache correctness is preserved without full wipes.
 
 **NGINX WebSocket proxying** — WebSocket and REST traffic share the same upstream. `proxy_http_version 1.1` + `Upgrade`/`Connection` headers are required; HTTP/1.0 cannot carry the upgrade mechanism. 24-hour read/send timeouts prevent Nginx from killing idle live connections.
+
+**HLS transcoding pipeline** — Each uploaded video is processed in a Celery task that calls FFmpeg twice (once per quality variant). `asyncio.run()` in a Celery worker creates a fresh event loop per invocation; without `await async_engine.dispose()` at the top of the async function, asyncpg reuses connections bound to the previous loop and crashes with a "Future attached to a different loop" error. The fix disposes the pool before any DB work so asyncpg reconnects on the current loop. Two separate S3 endpoints are configured: `S3_STORAGE_ENDPOINT` (internal Docker service name `minio:9000`) for worker uploads, and `S3_PUBLIC_ENDPOINT` (using `S3_PUBLIC_HOST`, default `localhost:9000`) baked into master playlist URLs and stream redirects so browsers can reach MinIO directly.
 
 **Load test results** — 500 concurrent users, 60,589 requests, **0 failures**, ~130 RPS sustained. Read latency: 2–4 ms median. Writes (likes, ratings): 26–200 ms. Login (bcrypt + DB write): ~1 s median.
