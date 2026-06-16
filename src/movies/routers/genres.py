@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status
 
 from movies.dependencies import get_movie_service
 from movies.schemas import GenreWithCountSchema
-from movies.service import MovieService
+from movies.services import MovieService
 
 router = APIRouter(prefix="/genres", tags=["Genres"])
 

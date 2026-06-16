@@ -14,7 +14,7 @@ from movies.schemas import (
     MovieSortParams,
     MovieUpdateSchema,
 )
-from movies.service import MovieReactionService, MovieService
+from movies.services import MovieReactionService, MovieService
 from rate_limiting import limiter
 from users.enums import UserGroupEnum
 from users.models import User

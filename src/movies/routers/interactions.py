@@ -17,7 +17,7 @@ from movies.schemas import (
     MovieReactionActionResponseSchema,
     MovieReactionSummarySchema,
 )
-from movies.service import MovieCommentService, MovieReactionService
+from movies.services import MovieCommentService, MovieReactionService
 from rate_limiting import limiter
 from users.models import User
 
