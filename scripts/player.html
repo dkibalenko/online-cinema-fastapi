@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cinema HLS Player — Smoke Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px;
+      gap: 24px;
+    }
+
+    h1 { font-size: 1.4rem; color: #fff; letter-spacing: 0.02em; }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 24px;
+      width: 100%;
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .card h2 { font-size: 0.95rem; color: #aaa; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    label { font-size: 0.85rem; color: #999; display: block; margin-bottom: 4px; }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="number"],
+    input[type="email"] {
+      width: 100%;
+      padding: 9px 12px;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: #4f8ef7; }
+
+    .row { display: flex; gap: 10px; }
+    .row > div { flex: 1; }
+
+    button {
+      padding: 10px 20px;
+      background: #4f8ef7;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      align-self: flex-start;
+    }
+    button:hover { background: #3a7de0; }
+    button:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+    .status {
+      font-size: 0.85rem;
+      padding: 8px 12px;
+      border-radius: 6px;
+      display: none;
+    }
+    .status.info  { background: #1a2a3a; color: #7ab0f5; display: block; }
+    .status.ok    { background: #1a2e1a; color: #6fcf6f; display: block; }
+    .status.error { background: #2e1a1a; color: #f57a7a; display: block; }
+
+    .token-display {
+      font-size: 0.75rem;
+      color: #555;
+      word-break: break-all;
+      display: none;
+    }
+    .token-display.visible { display: block; }
+
+    video {
+      width: 100%;
+      max-width: 860px;
+      border-radius: 10px;
+      background: #000;
+      outline: none;
+      display: none;
+    }
+    video.visible { display: block; }
+
+    .playlist-box {
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 0.78rem;
+      color: #7fba7f;
+      white-space: pre;
+      overflow-x: auto;
+      display: none;
+      max-width: 860px;
+      width: 100%;
+    }
+    .playlist-box.visible { display: block; }
+  </style>
+</head>
+<body>
+
+<h1>Cinema HLS Player — Smoke Test</h1>
+
+<!-- Step 1: config -->
+<div class="card">
+  <h2>1. API Config</h2>
+  <div>
+    <label>Base URL</label>
+    <input id="baseUrl" type="text" value="http://localhost:8000/api/v1/cinema" />
+  </div>
+</div>
+
+<!-- Step 2: login -->
+<div class="card">
+  <h2>2. Login</h2>
+  <div class="row">
+    <div>
+      <label>Email</label>
+      <input id="email" type="email" placeholder="admin@admin.com" />
+    </div>
+    <div>
+      <label>Password</label>
+      <input id="password" type="password" placeholder="P@ssAdmin123" />
+    </div>
+  </div>
+  <button id="loginBtn" onclick="login()">Log In</button>
+  <div id="loginStatus" class="status"></div>
+  <div id="tokenDisplay" class="token-display"></div>
+</div>
+
+<!-- Step 3: play -->
+<div class="card">
+  <h2>3. Play Movie</h2>
+  <div>
+    <label>Movie ID</label>
+    <input id="movieId" type="number" value="2" min="1" />
+  </div>
+  <button id="playBtn" onclick="play()" disabled>Play</button>
+  <div id="playStatus" class="status"></div>
+</div>
+
+<!-- Player -->
+<video id="video" controls></video>
+
+<!-- Master playlist preview -->
+<pre id="playlistBox" class="playlist-box"></pre>
+
+<script>
+  let token = null;
+
+  function setStatus(id, type, msg) {
+    const el = document.getElementById(id);
+    el.className = `status ${type}`;
+    el.textContent = msg;
+  }
+
+  async function login() {
+    const base  = document.getElementById('baseUrl').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const pass  = document.getElementById('password').value;
+
+    if (!email || !pass) { setStatus('loginStatus', 'error', 'Email and password required.'); return; }
+
+    setStatus('loginStatus', 'info', 'Logging in…');
+    document.getElementById('loginBtn').disabled = true;
+
+    try {
+      const res = await fetch(`${base}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setStatus('loginStatus', 'error', `Login failed (${res.status}): ${data.detail ?? JSON.stringify(data)}`);
+        return;
+      }
+
+      token = data.access_token;
+      setStatus('loginStatus', 'ok', `Logged in as ${email}`);
+
+      const td = document.getElementById('tokenDisplay');
+      td.textContent = `token: ${token.slice(0, 40)}…`;
+      td.classList.add('visible');
+
+      document.getElementById('playBtn').disabled = false;
+
+    } catch (err) {
+      setStatus('loginStatus', 'error', `Network error: ${err.message}`);
+    } finally {
+      document.getElementById('loginBtn').disabled = false;
+    }
+  }
+
+  async function play() {
+    if (!token) { setStatus('playStatus', 'error', 'Log in first.'); return; }
+
+    const base    = document.getElementById('baseUrl').value.trim();
+    const movieId = document.getElementById('movieId').value.trim();
+
+    setStatus('playStatus', 'info', 'Checking video status…');
+    document.getElementById('playBtn').disabled = true;
+
+    try {
+      // 1. Check status first for a clear error message if not ready
+      const statusRes = await fetch(`${base}/movies/${movieId}/video/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (statusRes.status === 404) {
+        setStatus('playStatus', 'error', 'No video found for this movie. Upload one first.');
+        return;
+      }
+
+      const statusData = await statusRes.json();
+
+      if (statusData.status !== 'ready') {
+        setStatus('playStatus', 'error',
+          `Video not ready yet. Status: ${statusData.status}` +
+          (statusData.error_message ? ` — ${statusData.error_message}` : '')
+        );
+        return;
+      }
+
+      // 2. Hit the stream endpoint — fetch follows the 302 redirect to MinIO.
+      //    response.url is the final URL after redirect (the master.m3u8 URL).
+      setStatus('playStatus', 'info', 'Fetching stream URL…');
+      const streamRes = await fetch(`${base}/movies/${movieId}/stream`, {
+        headers: { Authorization: `Bearer ${token}` },
+        redirect: 'follow',
+      });
+
+      if (!streamRes.ok) {
+        const err = await streamRes.json().catch(() => ({}));
+        setStatus('playStatus', 'error', `Stream error (${streamRes.status}): ${err.detail ?? 'unknown'}`);
+        return;
+      }
+
+      const manifestUrl = streamRes.url;
+      const playlistText = await streamRes.text();
+
+      // Show playlist content
+      const pb = document.getElementById('playlistBox');
+      pb.textContent = playlistText;
+      pb.classList.add('visible');
+
+      // 3. Feed the manifest URL to hls.js
+      const video = document.getElementById('video');
+      video.classList.add('visible');
+
+      if (Hls.isSupported()) {
+        const hls = new Hls({ debug: false });
+        hls.loadSource(manifestUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          const levels = hls.levels.length;
+          video.play().then(() => {
+            setStatus('playStatus', 'ok',
+              `Playing — ${levels} quality level(s). Manifest: ${manifestUrl}`
+            );
+          }).catch(() => {
+            setStatus('playStatus', 'ok',
+              `Ready — ${levels} quality level(s) loaded. Click ▶ on the player to start.`
+            );
+          });
+        });
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          if (data.fatal) {
+            setStatus('playStatus', 'error', `HLS error: ${data.type} / ${data.details}`);
+          }
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari native HLS
+        video.src = manifestUrl;
+        video.addEventListener('loadedmetadata', () => video.play().catch(() => {}));
+        setStatus('playStatus', 'ok', `Playing (native HLS). Manifest: ${manifestUrl}`);
+      } else {
+        setStatus('playStatus', 'error', 'HLS is not supported in this browser.');
+      }
+
+    } catch (err) {
+      setStatus('playStatus', 'error', `Error: ${err.message}`);
+    } finally {
+      document.getElementById('playBtn').disabled = false;
+    }
+  }
+</script>
+
+</body>
+</html>

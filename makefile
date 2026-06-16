@@ -14,3 +14,17 @@ dev-shell:
 
 test:
 	poetry run pytest -vv --maxfail=1
+
+lint:
+	poetry run ruff check src/
+
+lint-fix:
+	poetry run ruff check src/ --fix
+
+format:
+	poetry run ruff format src/
+
+typecheck:
+	poetry run mypy src/
+
+ci: lint typecheck test
