@@ -8,7 +8,7 @@ import users.models  # noqa: F401 — registers User in SQLAlchemy mapper regist
 
 from cinema_celery.celery_app import app
 from config import get_settings
-from database import get_db_contextmanager
+from database import async_engine, get_db_contextmanager
 from movies.models import VideoStatus
 from movies.repositories.video import VideoFileRepository
 from notifications.websocket_manager import manager
@@ -42,6 +42,11 @@ def transcode_to_hls(video_file_id: int) -> None:
 
 async def _transcode(video_file_id: int) -> None:
     """Async implementation of the HLS transcode pipeline."""
+    # Dispose stale pool connections from any previous event loop.
+    # asyncio.run() creates a fresh loop each invocation; without dispose(),
+    # asyncpg tries to reuse connections bound to the old loop and crashes.
+    await async_engine.dispose()
+
     s3 = _get_s3_client()
     settings = get_settings()
 
@@ -94,7 +99,7 @@ async def _transcode(video_file_id: int) -> None:
 
                 # 5. Build and upload master playlist
                 base_url = (
-                    f"{settings.S3_STORAGE_ENDPOINT}"
+                    f"{settings.S3_PUBLIC_ENDPOINT}"
                     f"/{settings.S3_BUCKET_NAME}/{hls_base}"
                 )
                 master = _build_master_playlist(base_url)

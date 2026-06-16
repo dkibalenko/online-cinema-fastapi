@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -45,6 +46,15 @@ def create_app(testing: bool = False) -> FastAPI:
             "via the internet."
         ),
         debug=testing,
+    )
+
+    # CORS - allow Swagger UI, the local HTML player
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     # Pagination
