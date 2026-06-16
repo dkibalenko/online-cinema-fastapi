@@ -243,10 +243,12 @@ class MovieReactionService:
         await self.cache_invalidator.invalidate_rating(movie_id, user_id)
         await self.cache_invalidator.invalidate_movie_lists(user_id)
 
-        avg_rating, count, user_rating = (
-            await self.repo.get_movie_rating_summary(
-                user_id=user_id, movie_id=movie_id
-            )
+        (
+            avg_rating,
+            count,
+            user_rating,
+        ) = await self.repo.get_movie_rating_summary(
+            user_id=user_id, movie_id=movie_id
         )
 
         return MovieRatingSummarySchema(
@@ -283,8 +285,7 @@ class MovieReactionService:
             await self.repo.commit()
         except IntegrityError as e:
             log.warning(
-                f"Rating delete failed | user_id={user_id} "
-                f"movie_id={movie_id}"
+                f"Rating delete failed | user_id={user_id} movie_id={movie_id}"
             )
             await self.repo.rollback()
             raise HTTPException(
@@ -294,10 +295,12 @@ class MovieReactionService:
 
         await self.cache_invalidator.invalidate_movie_lists(user_id)
 
-        avg_rating, count, user_rating = (
-            await self.repo.get_movie_rating_summary(
-                user_id=user_id, movie_id=movie_id
-            )
+        (
+            avg_rating,
+            count,
+            user_rating,
+        ) = await self.repo.get_movie_rating_summary(
+            user_id=user_id, movie_id=movie_id
         )
 
         return MovieRatingSummarySchema(
@@ -334,10 +337,12 @@ class MovieReactionService:
                 detail=f"Movie with ID {movie_id} not found.",
             )
 
-        avg_rating, count, user_rating = (
-            await self.repo.get_movie_rating_summary(
-                user_id=user_id, movie_id=movie_id
-            )
+        (
+            avg_rating,
+            count,
+            user_rating,
+        ) = await self.repo.get_movie_rating_summary(
+            user_id=user_id, movie_id=movie_id
         )
 
         result = MovieRatingSummarySchema(

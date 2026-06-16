@@ -49,7 +49,8 @@ class BaseAppSettings(BaseSettings):
     S3_STORAGE_ACCESS_KEY: str
     S3_STORAGE_SECRET_KEY: str
     S3_BUCKET_NAME: str
-    S3_PUBLIC_HOST: str = "localhost"  # browser-reachable host for redirect URLs
+    # browser-reachable host for redirect URLs
+    S3_PUBLIC_HOST: str = "localhost"
 
     # Safe defaults
     PATH_TO_AUTH_EMAIL_TEMPLATES_DIR: str = str(

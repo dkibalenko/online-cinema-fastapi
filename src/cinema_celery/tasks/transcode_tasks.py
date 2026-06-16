@@ -5,7 +5,6 @@ import tempfile
 
 import auth.models  # noqa: F401 — registers auth tokens in SQLAlchemy mapper registry
 import users.models  # noqa: F401 — registers User in SQLAlchemy mapper registry
-
 from cinema_celery.celery_app import app
 from config import get_settings
 from database import async_engine, get_db_contextmanager
