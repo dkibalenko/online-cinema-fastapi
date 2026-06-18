@@ -6,8 +6,6 @@ import email_validator
 from fastapi import UploadFile
 from PIL import Image
 
-from users.enums import GenderEnum
-
 
 def validate_password_complexity(password: str) -> str:
     """Validates a password against complexity rules.
@@ -101,23 +99,6 @@ def validate_image(avatar: UploadFile | None) -> UploadFile | None:
         raise ValueError("Invalid image format") from e
 
     return avatar
-
-
-def validate_gender(gender: str) -> str:
-    """Validates a gender.
-
-    :param gender: The gender to validate.
-    :return: The validated gender.
-    :raises ValueError: If the gender is not valid.
-    """
-    if gender is None:
-        return None
-
-    if gender not in GenderEnum.__members__.values():
-        raise ValueError(
-            f"Gender must be one of: {', '.join(g.value for g in GenderEnum)}"
-        )
-    return gender
 
 
 def validate_birth_date(birth_date: date) -> date:

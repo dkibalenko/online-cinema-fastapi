@@ -11,9 +11,9 @@ from pydantic import (
     field_validator,
 )
 
+from users.enums import GenderEnum
 from users.validators import (
     validate_birth_date,
-    validate_gender,
     validate_image,
     validate_name,
 )
@@ -22,7 +22,7 @@ from users.validators import (
 class ProfileBaseSchema(BaseModel):
     first_name: Annotated[str, AfterValidator(validate_name)]
     last_name: Annotated[str, AfterValidator(validate_name)]
-    gender: Annotated[str, AfterValidator(validate_gender)]
+    gender: GenderEnum
     date_of_birth: Annotated[date, AfterValidator(validate_birth_date)]
     info: str
 
@@ -52,7 +52,7 @@ class ProfileCreationSchema(ProfileBaseSchema):
         cls,
         first_name: Annotated[str, Form(...)],
         last_name: Annotated[str, Form(...)],
-        gender: Annotated[str, Form(...)],
+        gender: Annotated[GenderEnum, Form(...)],
         date_of_birth: Annotated[date, Form(...)],
         info: Annotated[str, Form(...)],
         # stream the file efficiently, validate file type,
@@ -94,7 +94,7 @@ class ProfileResponseSchema(ProfileBaseSchema):
 class ProfileUpdateSchema(BaseModel):
     first_name: Annotated[str | None, AfterValidator(validate_name)] = None
     last_name: Annotated[str | None, AfterValidator(validate_name)] = None
-    gender: Annotated[str | None, AfterValidator(validate_gender)] = None
+    gender: GenderEnum | None = None
     date_of_birth: Annotated[
         date | None, AfterValidator(validate_birth_date)
     ] = None
@@ -123,7 +123,7 @@ class ProfileUpdateSchema(BaseModel):
         cls,
         first_name: Annotated[str | None, Form()] = None,
         last_name: Annotated[str | None, Form()] = None,
-        gender: Annotated[str | None, Form()] = None,
+        gender: Annotated[GenderEnum | None, Form()] = None,
         date_of_birth: Annotated[date | None, Form()] = None,
         info: Annotated[str | None, Form()] = None,
         avatar: Annotated[UploadFile | None, File()] = None,
