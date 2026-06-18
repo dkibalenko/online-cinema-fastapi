@@ -66,4 +66,3 @@ RUN mkdir -p /var/log/app && \
 
 # Switch to non-root user for runtime
 USER cinemauser
-
