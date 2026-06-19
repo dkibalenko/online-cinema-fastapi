@@ -4,6 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class BaseRepository:
+    """Base repository providing common CRUD operations."""
+
     def __init__(self, db: AsyncSession):
         self.db = db
 

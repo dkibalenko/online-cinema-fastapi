@@ -52,6 +52,9 @@ class VideoFileRepository(BaseRepository):
     ) -> None:
         """Set the transcode status (and optional error message) and commit.
 
+        Used by the Celery task to transition states throughout the
+        transcoding process.
+
         Args:
             video (VideoFile): The VideoFile instance to update.
             status (VideoStatus): New status to assign.

@@ -78,6 +78,9 @@ class S3StorageClient(S3StorageInterface):
     async def download_file(self, file_name: str) -> bytes:
         """Download a file from S3-compatible storage and return its bytes.
 
+        Used by the Celery worker to pull the raw uploaded video back out of
+        MinIO before running FFmpeg
+
         Args:
             file_name (str): The key of the file to download.
 

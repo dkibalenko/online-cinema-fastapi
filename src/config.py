@@ -71,6 +71,10 @@ class BaseAppSettings(BaseSettings):
     def S3_STORAGE_ENDPOINT(self) -> str:
         """Get the S3-compatible storage endpoint URL.
 
+        This is the internal Docker hostname (minio) used for
+        container-to-container calls. It is not reachable from the browser, so
+        use S3_PUBLIC_ENDPOINT for redirects.
+
         Returns:
             str: The S3-compatible storage endpoint URL in the format
                 "http://host:port".
@@ -81,9 +85,8 @@ class BaseAppSettings(BaseSettings):
     def S3_PUBLIC_ENDPOINT(self) -> str:
         """Browser-reachable MinIO URL used in redirect responses.
 
-        S3_STORAGE_HOST is the internal Docker hostname (minio), which
-        browsers cannot resolve. S3_PUBLIC_HOST is the externally accessible
-        host (localhost in dev, CDN/domain in prod).
+        This is the externally accessible host (localhost in dev, CDN/domain
+        in prod).
 
         Returns:
             str: Public-facing MinIO endpoint URL.
