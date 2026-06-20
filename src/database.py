@@ -46,30 +46,39 @@ AsyncSessionLocal = async_sessionmaker(  # type: ignore
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """An async generator yielding an AsyncSession instance for the main app.
 
-    This function provides an async generator yielding an AsyncSession
-    instance.
-    It ensures that the session is properly initialized and closed after use.
+    Commits on successful completion of the request; rolls back and
+    re-raises on any exception. Intended for use via FastAPI's Depends().
 
     :return: An async generator yielding an AsyncSession instance.
     :rtype: AsyncGenerator[AsyncSession, None]
     """
     async with AsyncSessionLocal() as session:
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 @asynccontextmanager
 async def get_db_contextmanager() -> AsyncGenerator[AsyncSession, None]:
     """An async context manager for PostgreSQL database sessions.
 
-    This function provides an async context manager yielding an AsyncSession
-    instance.
-    It ensures that the session is properly initialized and closed after use.
+    Commits on successful completion of the `async with` block; rolls back
+    and re-raises on any exception. Intended for use outside FastAPI's
+    dependency system (Celery tasks, WebSocket auth, seeding scripts).
 
     :return: An async generator yielding an AsyncSession instance.
     :rtype: AsyncGenerator[AsyncSession, None]
     """
     async with AsyncSessionLocal() as session:
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 # --- Sync engine for Alembic migrations ---
