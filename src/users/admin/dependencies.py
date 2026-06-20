@@ -10,7 +10,7 @@ from users.admin.services.profile_service import AdminUserProfileService
 from users.admin.services.user_service import AdminUserService
 
 
-def get_admin_user_repo(
+async def get_admin_user_repo(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> AdminUserRepository:
     """Dependency factory that returns an instance of AdminUserRepository.
@@ -21,7 +21,7 @@ def get_admin_user_repo(
     return AdminUserRepository(db)
 
 
-def get_admin_user_service(
+async def get_admin_user_service(
     repo: Annotated[AdminUserRepository, Depends(get_admin_user_repo)],
 ) -> AdminUserService:
     """Dependency factory that returns an instance of AdminUserService.
@@ -32,7 +32,7 @@ def get_admin_user_service(
     return AdminUserService(repo)
 
 
-def get_admin_user_profile_repo(
+async def get_admin_user_profile_repo(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> AdminUserProfileRepository:
     """Dependency factory that returns an AdminUserProfileRepository instance.
@@ -43,7 +43,7 @@ def get_admin_user_profile_repo(
     return AdminUserProfileRepository(db)
 
 
-def get_admin_user_profile_service(
+async def get_admin_user_profile_service(
     repo: Annotated[
         AdminUserProfileRepository, Depends(get_admin_user_profile_repo)
     ],

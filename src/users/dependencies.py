@@ -10,7 +10,7 @@ from users.repository import UserRepository
 from users.service import UserService
 
 
-def get_user_repository(
+async def get_user_repository(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> UserRepository:
     """Dependency factory that returns an instance of the UserRepository class.
@@ -21,7 +21,7 @@ def get_user_repository(
     return UserRepository(db)
 
 
-def get_users_service(
+async def get_users_service(
     users: Annotated[UserRepository, Depends(get_user_repository)],
     s3_client: Annotated[S3StorageInterface, Depends(get_s3_storage_client)],
 ) -> UserService:

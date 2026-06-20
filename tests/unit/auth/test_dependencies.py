@@ -5,7 +5,8 @@ from users.enums import UserGroupEnum
 from auth.dependencies import require_role
 
 
-def test_require_role_allowed():
+@pytest.mark.asyncio
+async def test_require_role_allowed():
     """
     Tests that the require_role dependency returns the current user if the user has the required role.
 
@@ -22,12 +23,13 @@ def test_require_role_allowed():
             return group == UserGroupEnum.ADMIN
 
     dep = require_role(UserGroupEnum.ADMIN)
-    result = dep(FakeUser())
+    result = await dep(FakeUser())
 
     assert result is not None
 
 
-def test_require_role_forbidden():
+@pytest.mark.asyncio
+async def test_require_role_forbidden():
     """
     Tests that the require_role dependency raises an HTTPException with a status code of 403
     when the current user does not have the required role.
@@ -48,7 +50,7 @@ def test_require_role_forbidden():
     dep = require_role(UserGroupEnum.ADMIN)
 
     with pytest.raises(HTTPException) as exc:
-        dep(FakeUser())
+        await dep(FakeUser())
 
     assert exc.value.status_code == 403
     assert "required role(s): admin" in exc.value.detail.lower()

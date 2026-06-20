@@ -20,7 +20,7 @@ from storages.dependencies import get_s3_storage_client
 from storages.interfaces import S3StorageInterface
 
 
-def get_movie_cache_invalidation_service(
+async def get_movie_cache_invalidation_service(
     cache: Annotated[CacheService, Depends(get_cache)],
 ) -> MovieCacheInvalidationService:
     """Returns an instance of MovieCacheInvalidationService.
@@ -31,7 +31,7 @@ def get_movie_cache_invalidation_service(
     return MovieCacheInvalidationService(cache)
 
 
-def get_movie_service(
+async def get_movie_service(
     db: Annotated[AsyncSession, Depends(get_db)],
     cache: Annotated[CacheService, Depends(get_cache)],
     cache_invalidator: Annotated[
@@ -57,7 +57,7 @@ def get_movie_service(
     )
 
 
-def get_movie_reaction_service(
+async def get_movie_reaction_service(
     db: Annotated[AsyncSession, Depends(get_db)],
     cache: Annotated[CacheService, Depends(get_cache)],
     cache_invalidator: Annotated[
@@ -84,7 +84,7 @@ def get_movie_reaction_service(
     )
 
 
-def get_movie_comment_service(
+async def get_movie_comment_service(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> MovieCommentService:
     """Returns an instance of MovieCommentService.
@@ -99,7 +99,7 @@ def get_movie_comment_service(
     return MovieCommentService(repo)
 
 
-def get_video_service(
+async def get_video_service(
     db: Annotated[AsyncSession, Depends(get_db)],
     s3: Annotated[S3StorageInterface, Depends(get_s3_storage_client)],
 ) -> VideoService:

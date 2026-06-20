@@ -23,7 +23,7 @@ bearer_scheme = HTTPBearer()
 log = get_logger()
 
 
-def get_auth_repository(
+async def get_auth_repository(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> AuthRepository:
     """Dependency factory that returns an instance of the `AuthRepository`.
@@ -36,7 +36,7 @@ def get_auth_repository(
     return AuthRepository(db)
 
 
-def get_jwt_auth_manager(
+async def get_jwt_auth_manager(
     settings: Annotated[BaseAppSettings, Depends(get_settings)],
 ) -> JWTAuthManagerInterface:
     """Retrieves an instance of the `JWTAuthManager` class.
@@ -146,7 +146,7 @@ def require_role(*allowed_roles: UserGroupEnum):
         @router.post("/movies", dependencies=[Depends(require_role(ADMIN))])
     """
 
-    def role_checker(
+    async def role_checker(
         current_user: Annotated[User, Depends(get_current_user)],
     ) -> User:
         # Check if user has any allowed role
@@ -161,7 +161,7 @@ def require_role(*allowed_roles: UserGroupEnum):
     return role_checker
 
 
-def get_auth_service(
+async def get_auth_service(
     auth: Annotated[AuthRepository, Depends(get_auth_repository)],
     jwt: Annotated[JWTAuthManagerInterface, Depends(get_jwt_auth_manager)],
     email_sender: Annotated[

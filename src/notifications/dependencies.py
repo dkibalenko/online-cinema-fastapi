@@ -7,7 +7,7 @@ from notifications.factories import create_auth_email_sender
 from notifications.interfaces import AuthEmailSenderInterface
 
 
-def get_auth_email_sender(
+async def get_auth_email_sender(
     settings: Annotated[BaseAppSettings, Depends(get_settings)],
 ) -> AuthEmailSenderInterface:
     """Returns an instance of AuthEmailSenderInterface.

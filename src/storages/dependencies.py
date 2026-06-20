@@ -7,7 +7,7 @@ from storages.interfaces import S3StorageInterface
 from storages.s3_client import S3StorageClient
 
 
-def get_s3_storage_client(
+async def get_s3_storage_client(
     settings: Annotated[BaseAppSettings, Depends(get_settings)],
 ) -> S3StorageInterface:
     """Retrieve an instance of the S3StorageInterface.
