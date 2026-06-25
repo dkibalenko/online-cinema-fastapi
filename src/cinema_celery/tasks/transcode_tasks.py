@@ -11,18 +11,8 @@ from database import async_engine, get_db_contextmanager
 from movies.models import VideoStatus
 from movies.repositories.video import VideoFileRepository
 from notifications.websocket_manager import manager
-from storages.s3_client import S3StorageClient
-
-
-def _get_s3_client() -> S3StorageClient:
-    """Instantiate the S3 client from current settings."""
-    settings = get_settings()
-    return S3StorageClient(
-        endpoint_url=settings.S3_STORAGE_ENDPOINT,
-        access_key=settings.S3_STORAGE_ACCESS_KEY,
-        secret_key=settings.S3_STORAGE_SECRET_KEY,
-        bucket_name=settings.S3_BUCKET_NAME,
-    )
+from storages.dependencies import get_s3_storage_client
+from storages.interfaces import S3StorageInterface
 
 
 @app.task
@@ -40,38 +30,54 @@ def transcode_to_hls(video_file_id: int) -> None:
 
 
 async def _transcode(video_file_id: int) -> None:
-    """Async implementation of the HLS transcode pipeline."""
+    """Async implementation of the HLS transcode pipeline.
+
+    This function performs the following steps:
+    1. Dispose of any stale asyncpg connections from previous event loops.
+    2. Retrieve application settings and create an S3 storage client.
+    3. Fetch the VideoFile record from the database.
+    4. Update the VideoFile status to PROCESSING.
+    5. Download the raw video from MinIO to a temporary directory.
+    6. Transcode the video to 360p and 720p HLS variants using FFmpeg.
+    7. Upload the HLS segments and playlists to MinIO.
+    8. Build and upload the master playlist to MinIO.
+    9. Update the VideoFile status to READY or FAILED based on the outcome.
+    10. Send a WebSocket notification to the uploader about the result.
+
+    Args:
+        video_file_id (int): Primary key of the VideoFile record to process.
+    """
     # Dispose stale pool connections from any previous event loop.
     # asyncio.run() creates a fresh loop each invocation; without dispose(),
     # asyncpg tries to reuse connections bound to the old loop and crashes.
     await async_engine.dispose()
 
-    s3 = _get_s3_client()
     settings = get_settings()
+    s3 = await get_s3_storage_client(settings)
 
     async with get_db_contextmanager() as db:
         repo = VideoFileRepository(db)
-        video = await repo.get_by_id(video_file_id)
+        video_record = await repo.get_by_id(video_file_id)
 
-        if video is None:
+        if video_record is None:
             return
 
-        await repo.update_status(video, VideoStatus.PROCESSING)
-        movie_id = video.movie_id
-        uploader_id = video.uploaded_by
+        await repo.update_status(video_record, VideoStatus.PROCESSING)
+        movie_id = video_record.movie_id
+        uploader_id = video_record.uploaded_by
 
         with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = pathlib.Path(tmp)
-            source_path = tmp_path / "source.mp4"
-            out_360 = tmp_path / "360p"
-            out_720 = tmp_path / "720p"
+            tmp_path = pathlib.Path(tmp)  # Path object for temp dir
+            source_path = tmp_path / "source.mp4"  # Path for downloaded video
+            out_360 = tmp_path / "360p"  # Path for 360p output
+            out_720 = tmp_path / "720p"  # Path for 720p output
             out_360.mkdir()
             out_720.mkdir()
 
             try:
                 # 1. Download raw video from MinIO
-                raw_bytes = await s3.download_file(video.raw_key)
-                source_path.write_bytes(raw_bytes)
+                raw_bytes = await s3.download_file(video_record.raw_key)
+                source_path.write_bytes(raw_bytes)  # write to temp file
 
                 # 2. Transcode 360p
                 _run_ffmpeg(
@@ -109,11 +115,11 @@ async def _transcode(video_file_id: int) -> None:
                 )
 
                 # 6. Mark ready
-                await repo.update_status(video, VideoStatus.READY)
+                await repo.update_status(video_record, VideoStatus.READY)
 
             except Exception as exc:
                 await repo.update_status(
-                    video, VideoStatus.FAILED, error=str(exc)
+                    video_record, VideoStatus.FAILED, error=str(exc)
                 )
                 if uploader_id:
                     await manager.send_to_user(
@@ -146,6 +152,10 @@ def _run_ffmpeg(
     video_bitrate: str,
 ) -> None:
     """Run FFmpeg to produce an HLS variant in output_dir.
+
+    Writes .m3u8 playlist and .ts segments to disk. Raises CalledProcessError
+    if FFmpeg fails.
+    The caller expects files to exist afterwards.
 
     Args:
         input_path (str): Path to the source video file.
@@ -186,7 +196,7 @@ def _run_ffmpeg(
 
 
 async def _upload_directory(
-    s3: S3StorageClient,
+    s3: S3StorageInterface,
     local_dir: pathlib.Path,
     s3_prefix: str,
 ) -> None:

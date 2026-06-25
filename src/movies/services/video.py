@@ -4,7 +4,7 @@ import tempfile
 from fastapi import HTTPException, UploadFile, status
 
 from cinema_celery.tasks.transcode_tasks import transcode_to_hls
-from config import Settings
+from config import BaseAppSettings
 from logger_config import get_logger
 from movies.models import VideoFile, VideoStatus
 from movies.repositories.video import VideoFileRepository
@@ -21,7 +21,7 @@ class VideoService:
         self,
         repo: VideoFileRepository,
         s3: S3StorageInterface,
-        settings: Settings,
+        settings: BaseAppSettings,
     ):
         self.repo = repo
         self.s3 = s3
@@ -35,8 +35,10 @@ class VideoService:
         :param movie_id: ID of the movie to attach the video to.
         :param file: The raw video upload.
         :param user_id: ID of the authenticated uploader.
+
         :raises HTTPException 400: Unsupported file extension.
         :raises HTTPException 409: A video already exists for this movie.
+
         :return: Upload confirmation with initial VideoFile state.
         """
         suffix = pathlib.Path(file.filename or "").suffix.lower()
@@ -58,20 +60,24 @@ class VideoService:
 
         raw_key = f"videos/raw/{movie_id}/original{suffix}"
 
-        # Stream to temp file — avoids loading GB-scale uploads into RAM
+        # Stream to temp file - avoids loading GB-scale uploads into RAM
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            # build temp file path for later use
             tmp_path = pathlib.Path(tmp.name)
             chunk_size = 1024 * 1024  # 1 MB
+            # read the upload in chunks and write to temp file
             while chunk := await file.read(chunk_size):
-                tmp.write(chunk)
+                tmp.write(chunk)  # takes bytes - UploadFile.read returns bytes
 
+        # Upload temp file to MinIO and delete temp file after upload
         await self.s3.upload_file(
             raw_key,
-            tmp_path.read_bytes(),
+            tmp_path.read_bytes(),  # file still exists on disk at tmp_path
             content_type=file.content_type or "application/octet-stream",
         )
-        tmp_path.unlink(missing_ok=True)
+        tmp_path.unlink(missing_ok=True)  # delete temp file after upload
 
+        # Create VideoFile record in DB and queue transcode task
         video = VideoFile(
             movie_id=movie_id,
             raw_key=raw_key,
@@ -82,6 +88,7 @@ class VideoService:
         await self.repo.commit()
         await self.repo.refresh(video)
 
+        # Queue the transcode task asynchronously using Celery
         transcode_to_hls.delay(video.id)
 
         log.info(

@@ -31,7 +31,7 @@ class VideoFileRepository(BaseRepository):
         return result.scalar_one_or_none()
 
     async def get_by_id(self, video_id: int) -> VideoFile | None:
-        """Fetch a VideoFile by its own primary key.
+        """Fetch a VideoFile record by its own primary key.
 
         Args:
             video_id (int): Primary key of the VideoFile.
