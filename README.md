@@ -69,6 +69,7 @@
 - **Redis caching** — response cache with targeted per-key invalidation using non-blocking `scan_iter`
 - **WebSockets** — JWT-authenticated connections, multi-tab support, stale connection cleanup
 - **NGINX** — SSL/TLS 1.2/1.3, WebSocket upgrade, GET response caching, HTTP→HTTPS redirect
+- **External service integrations** — async adapter clients for S3-compatible object storage (MinIO/aioboto3, avatar upload/delete) and SMTP email delivery (aiosmtplib); name data seeded via randomuser.me HTTP API (httpx); all clients implement interface contracts for DI and isolated unit testing
 - **Database seeding** — idempotent async seeder with auto-generated JSON fixtures
 - **Load tested** — 500 concurrent users, 60k requests, 0 failures at ~130 RPS (Locust)
 - **HLS video streaming** — Admin/Moderator uploads a raw MP4; Celery worker transcodes to 360p + 720p HLS variants via FFmpeg; segments and playlists are stored in MinIO; authenticated users stream via a `302` redirect to the master playlist; any HLS player (hls.js, Safari native) works out of the box
