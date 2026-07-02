@@ -85,8 +85,8 @@ class VideoService:
             uploaded_by=user_id,
         )
         self.repo.add(video)
-        await self.repo.commit()
-        await self.repo.refresh(video)
+        await self.repo.commit()  # T1 is commited
+        await self.repo.refresh(video)  # T2 begins, conn reused, SELECT...
 
         # Queue the transcode task asynchronously using Celery
         transcode_to_hls.delay(video.id)

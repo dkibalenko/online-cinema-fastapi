@@ -12,9 +12,6 @@ async def get_s3_storage_client(
 ) -> S3StorageInterface:
     """Retrieve an instance of the S3StorageInterface.
 
-    This function returns an instance of S3StorageClient configured with the
-    application settings.
-
     This function instantiates an S3StorageClient using the provided settings,
     which include the S3 endpoint URL, access credentials, and the bucket name.
     The returned client can be used to interact with an S3-compatible storage

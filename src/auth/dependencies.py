@@ -139,7 +139,10 @@ async def get_current_user(
 def require_role(*allowed_roles: UserGroupEnum):
     """Dependency factory.
 
-    Checks if the current user has one of the allowed roles.
+    First resolves the current user using the `get_current_user` dependency,
+    then checks if the user has any of the allowed roles.
+    If the user does not have any of the allowed roles, raises
+    an HTTP 403 Forbidden exception.
 
     Usage:
         @router.get("/admin", dependencies=[Depends(require_role(ADMIN))])

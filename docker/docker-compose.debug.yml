@@ -1,0 +1,18 @@
+services:
+  web:
+    command: ["/bin/bash", "/commands/run_debug.sh"]
+    ports:
+      - "5678:5678"
+    environment:
+      - PYTHONPATH=/usr/src/fastapi
+      - WATCHFILES_FORCE_POLLING=false
+
+  celery-worker:
+    command: >
+      python -m debugpy --listen 0.0.0.0:5679
+      -m celery -A cinema_celery.celery_app worker
+      --loglevel=info --pool=solo
+    ports:
+      - "5679:5679"
+    environment:
+      - PYTHONPATH=/usr/src/fastapi
