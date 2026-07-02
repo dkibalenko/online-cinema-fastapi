@@ -58,12 +58,14 @@ class MovieReactionService:
             user_id, movie_id
         )
 
-        if user_reaction is True:
-            reaction_str = "like"
-        elif user_reaction is False:
-            reaction_str = "dislike"
-        else:
-            reaction_str = None
+        reaction_str: str | None
+        match user_reaction:
+            case True:
+                reaction_str = "like"
+            case False:
+                reaction_str = "dislike"
+            case _:
+                reaction_str = None
 
         result = MovieReactionSummarySchema(
             movie_id=movie_id,
