@@ -245,7 +245,8 @@ class AuthService:
             await self.auth.rollback()
             log.error(
                 f"Error during resend activation token creation for "
-                f"{email_data.email}: {error}"
+                f"{email_data.email}: {error}",
+                exc_info=True,
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -500,7 +501,8 @@ class AuthService:
         except SQLAlchemyError as error:
             log.error(
                 f"Error during password reset token creation for "
-                f"{user.email}: {error}"
+                f"{user.email}: {error}",
+                exc_info=True,
             )
             await self.auth.rollback()
             raise HTTPException(
@@ -583,7 +585,10 @@ class AuthService:
             await self.auth.delete_password_reset_token(token_record)
             await self.auth.commit()
         except SQLAlchemyError as error:
-            log.error(f"Error during password reset for {user.email}: {error}")
+            log.error(
+                f"Error during password reset for {user.email}: {error}",
+                exc_info=True,
+            )
             await self.auth.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -630,7 +635,8 @@ class AuthService:
             await self.auth.commit()
         except SQLAlchemyError as error:
             log.error(
-                f"Error during password change for {user.email}: {error}"
+                f"Error during password change for {user.email}: {error}",
+                exc_info=True,
             )
             await self.auth.rollback()
             raise HTTPException(

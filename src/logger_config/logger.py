@@ -7,6 +7,9 @@ def setup_logging() -> None:
     """Loads logging configuration from the external JSON file.
 
     Then applies it using dictConfig.
+    If the configuration file is not found or an error occurs during loading,
+    a basic logging configuration is set up with WARNING level, and a warning
+    message is logged.
     """
     try:
         config_file = Path(__file__).parent / "config.json"
@@ -25,5 +28,5 @@ def setup_logging() -> None:
 
 
 def get_logger() -> logging.Logger:
-    """Returns tha main, configured 'app_logger' instance."""
+    """Returns the main, configured 'app_logger' instance."""
     return logging.getLogger("app_logger")

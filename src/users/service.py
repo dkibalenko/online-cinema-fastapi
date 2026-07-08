@@ -87,7 +87,8 @@ class UserService:
             except (S3ConnectionError, S3FileUploadError) as e:
                 log.error(
                     f"Failed to upload avatar | user_id={user_id} "
-                    f"filename={file_name}"
+                    f"filename={file_name}",
+                    exc_info=True,
                 )
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -111,7 +112,10 @@ class UserService:
             await self.users.refresh(profile)
             log.info(f"Profile created | user_id={user_id}")
         except IntegrityError as e:
-            log.error(f"Failed to create profile | user_id={user_id}")
+            log.error(
+                f"Failed to create profile | user_id={user_id}",
+                exc_info=True,
+            )
             await self.users.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -128,7 +132,7 @@ class UserService:
         :param user_id: The ID of the user whose profile to retrieve.
         :return: The user's profile, or None if no profile is found.
         """
-        log.info(f"Fetching profile | user_id={user_id}")
+        log.debug(f"Fetching profile | user_id={user_id}")
         user = await self.users.get_by_id_with_profile(user_id)
 
         if not user or not user.is_active:
@@ -236,7 +240,8 @@ class UserService:
                 log.info(f"Avatar uploaded | user_id={user_id}")
             except (S3ConnectionError, S3FileUploadError) as e:
                 log.error(
-                    f"Failed to upload avatar | user_id={user_id} | error={e}"
+                    f"Failed to upload avatar | user_id={user_id} | error={e}",
+                    exc_info=True,
                 )
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -252,7 +257,8 @@ class UserService:
             log.info(f"Profile updated | user_id={user_id}")
         except IntegrityError as e:
             log.error(
-                f"Error updating profile | user_id={user_id} | error={e}"
+                f"Error updating profile | user_id={user_id} | error={e}",
+                exc_info=True,
             )
             await self.users.rollback()
             raise HTTPException(
@@ -310,7 +316,8 @@ class UserService:
             log.info(f"Profile deleted | user_id={user_id}")
         except IntegrityError as e:
             log.error(
-                f"Error deleting profile | user_id={user_id} | error={e}"
+                f"Error deleting profile | user_id={user_id} | error={e}",
+                exc_info=True,
             )
             await self.users.rollback()
             raise HTTPException(

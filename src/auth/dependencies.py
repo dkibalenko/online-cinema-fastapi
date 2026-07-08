@@ -75,13 +75,13 @@ async def get_current_user(
     try:
         payload = jwt_manager.decode_access_token(token)
     except TokenExpiredError as error:
-        log.error("Access token has expired")
+        log.error("Access token has expired", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Access token has expired",
         ) from error
     except InvalidTokenError as error:
-        log.error("Invalid access token")
+        log.error("Invalid access token", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid access token",
@@ -106,7 +106,7 @@ async def get_current_user(
     try:
         user_id_int = int(user_id)
     except (TypeError, ValueError) as error:
-        log.error("Invalid token")
+        log.error("Invalid token", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",

@@ -54,7 +54,7 @@ class MovieService:
         Returns:
             Page[MovieListItemSchema]: The paginated list of movies.
         """
-        log.info("Fetching movie list")
+        log.debug("Fetching movie list")
 
         filter_data = filter_query.model_dump()
         sort_data = sort_query.model_dump()
@@ -95,7 +95,7 @@ class MovieService:
         Returns:
             MovieDetailSchema: The movie detail.
         """
-        log.info(f"Fetching movie detail | movie_id={movie_id}")
+        log.debug(f"Fetching movie detail | movie_id={movie_id}")
 
         cache_key = f"movie:detail:{movie_id}:user:{user_id}"
 
@@ -178,7 +178,10 @@ class MovieService:
 
             return movie
         except IntegrityError as e:
-            log.error(f"Integrity error during movie creation | error={e}")
+            log.error(
+                f"Integrity error during movie creation | error={e}",
+                exc_info=True,
+            )
             await self.repo.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -228,7 +231,10 @@ class MovieService:
 
             return movie
         except IntegrityError as e:
-            log.error(f"Integrity error during movie update | error={e}")
+            log.error(
+                f"Integrity error during movie update | error={e}",
+                exc_info=True,
+            )
             await self.repo.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
