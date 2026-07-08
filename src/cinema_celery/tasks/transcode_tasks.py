@@ -3,16 +3,19 @@ import pathlib
 import subprocess
 import tempfile
 
-import auth.models  # noqa: F401 — registers auth tokens in SQLAlchemy mapper registry
-import users.models  # noqa: F401 — registers User in SQLAlchemy mapper registry
+import auth.models  # noqa: F401 - registers auth tokens in SQLAlchemy mapper registry
+import users.models  # noqa: F401 - registers User in SQLAlchemy mapper registry
 from cinema_celery.celery_app import app
 from config import get_settings
 from database import async_engine, get_db_contextmanager
+from logger_config import get_logger
 from movies.models import VideoStatus
 from movies.repositories.video import VideoFileRepository
 from notifications.websocket_manager import manager
 from storages.dependencies import get_s3_storage_client
 from storages.interfaces import S3StorageInterface
+
+log = get_logger()
 
 
 @app.task
@@ -52,6 +55,8 @@ async def _transcode(video_file_id: int) -> None:
     # asyncpg tries to reuse connections bound to the old loop and crashes.
     await async_engine.dispose()
 
+    log.info(f"Transcode started | video_id={video_file_id}")
+
     settings = get_settings()
     s3 = await get_s3_storage_client(settings)
 
@@ -60,6 +65,9 @@ async def _transcode(video_file_id: int) -> None:
         video_record = await repo.get_by_id(video_file_id)
 
         if video_record is None:
+            log.error(
+                f"VideoFile not found — aborting | video_id={video_file_id}"
+            )
             return
 
         await repo.update_status(video_record, VideoStatus.PROCESSING)
@@ -78,6 +86,10 @@ async def _transcode(video_file_id: int) -> None:
                 # 1. Download raw video from MinIO
                 raw_bytes = await s3.download_file(video_record.raw_key)
                 source_path.write_bytes(raw_bytes)  # write to temp file
+                log.info(
+                    f"Downloaded raw video | video_id={video_file_id} "
+                    f"key={video_record.raw_key} size={len(raw_bytes)}B"
+                )
 
                 # 2. Transcode 360p
                 _run_ffmpeg(
@@ -87,6 +99,7 @@ async def _transcode(video_file_id: int) -> None:
                     scale="640:360",
                     video_bitrate="800k",
                 )
+                log.info(f"FFmpeg 360p complete | video_id={video_file_id}")
 
                 # 3. Transcode 720p
                 _run_ffmpeg(
@@ -96,11 +109,13 @@ async def _transcode(video_file_id: int) -> None:
                     scale="1280:720",
                     video_bitrate="2800k",
                 )
+                log.info(f"FFmpeg 720p complete | video_id={video_file_id}")
 
                 # 4. Upload all HLS files to MinIO
                 hls_base = f"videos/hls/{movie_id}"
                 await _upload_directory(s3, out_360, f"{hls_base}/360p")
                 await _upload_directory(s3, out_720, f"{hls_base}/720p")
+                log.info(f"HLS segments uploaded | video_id={video_file_id}")
 
                 # 5. Build and upload master playlist
                 base_url = (
@@ -113,11 +128,23 @@ async def _transcode(video_file_id: int) -> None:
                     master.encode(),
                     content_type="application/x-mpegURL",
                 )
+                log.info(
+                    f"Master playlist uploaded | video_id={video_file_id}"
+                )
 
                 # 6. Mark ready
                 await repo.update_status(video_record, VideoStatus.READY)
+                log.info(
+                    f"Transcode complete | video_id={video_file_id} "
+                    f"movie_id={movie_id}"
+                )
 
             except Exception as exc:
+                log.error(
+                    f"Transcode failed | video_id={video_file_id} "
+                    f"movie_id={movie_id}",
+                    exc_info=True,
+                )
                 await repo.update_status(
                     video_record, VideoStatus.FAILED, error=str(exc)
                 )
