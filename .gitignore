@@ -225,3 +225,5 @@ DESIGN.md
 # Self-signed TLS certs - generated at Docker build time, never committed
 nginx/certs/selfsigned.crt
 nginx/certs/selfsigned.key
+
+ping
