@@ -219,6 +219,8 @@ $RECYCLE.BIN/
 
 population_flow.md
 notes/
+CLAUDE.md
+DESIGN.md
 
 # Self-signed TLS certs - generated at Docker build time, never committed
 nginx/certs/selfsigned.crt
