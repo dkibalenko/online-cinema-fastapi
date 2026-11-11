@@ -46,6 +46,7 @@ AsyncSessionLocal = async_sessionmaker(  # type: ignore
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """An async generator yielding an AsyncSession instance for the main app.
 
+    Opens a database session.
     Commits on successful completion of the request; rolls back and
     re-raises on any exception. Intended for use via FastAPI's Depends().
 
@@ -65,6 +66,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def get_db_contextmanager() -> AsyncGenerator[AsyncSession, None]:
     """An async context manager for PostgreSQL database sessions.
 
+    Opens a database session.
     Commits on successful completion of the `async with` block; rolls back
     and re-raises on any exception. Intended for use outside FastAPI's
     dependency system (Celery tasks, WebSocket auth, seeding scripts).
